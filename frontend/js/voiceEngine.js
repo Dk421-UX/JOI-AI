@@ -4,6 +4,7 @@
 */
 
 import { orbRenderer } from './orbRenderer.js';
+import { subtitleManager } from './subtitleManager.js';
 
 // ── Web Audio Synth Subsystem (Consolidated from audioEngine) ────────────────
 class AudioSynthController {
@@ -297,7 +298,9 @@ class VoiceEngine {
     this._resumeTimer = null;
     
     this.isListening = false;
+    this.isListeningDesired = false;
     this.isSpeaking = false;
+    this.isProcessing = false;
     
     this.wordsList = [];
     this.subtitleTimer = null;
@@ -306,6 +309,7 @@ class VoiceEngine {
     this.onEndCallback = null;
     this.onTranscriptCallback = null;
     this.onInterruptCallback = null;
+    this.onStartListeningCallback = null;
     
     this._voicesLoaded = false;
     this._initVoices();
@@ -360,20 +364,41 @@ class VoiceEngine {
     }
     
     this.recognition = new SpeechRecognitionClass();
-    this.recognition.continuous = false;
-    this.recognition.interimResults = false;
+    this.recognition.continuous = true;
+    this.recognition.interimResults = true;
     this.recognition.lang = 'en-US';
     
     this.recognition.onstart = () => {
       this.isListening = true;
+      subtitleManager.clearSubtitle();
       console.log('[Voice] Listening started...');
+      if (this.onStartListeningCallback) {
+        this.onStartListeningCallback();
+      }
     };
     
     this.recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      console.log('[Voice] Transcript received:', transcript);
-      if (this.onTranscriptCallback) {
-        this.onTranscriptCallback(transcript);
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+      }
+      
+      if (finalTranscript) {
+        const cleaned = this.cleanTranscript(finalTranscript);
+        if (cleaned && cleaned.trim()) {
+          console.log('[Voice] Transcript received and cleaned:', cleaned);
+          // Pause recognition immediately to prevent hearing own reply triggers
+          // Do not call stopListening() because that sets isListeningDesired to false.
+          if (this.recognition && this.isListening) {
+            try { this.recognition.stop(); } catch(e) {}
+          }
+          this.isProcessing = true;
+          if (this.onTranscriptCallback) {
+            this.onTranscriptCallback(cleaned);
+          }
+        }
       }
     };
     
@@ -386,22 +411,65 @@ class VoiceEngine {
     
     this.recognition.onend = () => {
       this.isListening = false;
-      const voiceMode = document.getElementById('voice-mode-toggle');
-      if (voiceMode?.checked && !this.isSpeaking) {
+      
+      // Auto recovery: if recognition ended but listening is still desired
+      // and we are not currently speaking or waiting for a response, restart it.
+      if (this.isListeningDesired && !this.isSpeaking && !this.isProcessing) {
         setTimeout(() => {
-          if (!this.isSpeaking && !this.isListening) {
-            this.startListening();
+          if (this.isListeningDesired && !this.isSpeaking && !this.isProcessing && !this.isListening) {
+            try {
+              this.recognition.start();
+              this.isListening = true;
+            } catch (err) {
+              console.warn('[Voice] Safe recognition restart failed:', err.message);
+            }
           }
-        }, 400);
+        }, 300);
       }
     };
   }
 
+  cleanTranscript(text) {
+    if (!text) return '';
+    let clean = text.trim();
+    
+    // Remove repeated consecutive words (case-insensitive)
+    const words = clean.split(/\s+/);
+    const filteredWords = [];
+    for (let i = 0; i < words.length; i++) {
+      const current = words[i].toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
+      const last = filteredWords.length > 0 ? filteredWords[filteredWords.length - 1].toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "") : null;
+      if (current !== last) {
+        filteredWords.push(words[i]);
+      }
+    }
+    clean = filteredWords.join(' ');
+    
+    // Remove repeated halves/duplicated segments
+    const phraseWords = clean.split(/\s+/);
+    if (phraseWords.length >= 4) {
+      const half = Math.floor(phraseWords.length / 2);
+      const firstHalf = phraseWords.slice(0, half).join(' ').toLowerCase();
+      const secondHalf = phraseWords.slice(half).join(' ').toLowerCase();
+      if (firstHalf === secondHalf) {
+        clean = phraseWords.slice(0, half).join(' ');
+      }
+    }
+    
+    return clean.trim();
+  }
+
   startListening() {
     if (!this.recognition) this._initRecognition();
-    if (!this.recognition || this.isListening) return;
+    if (!this.recognition) return;
     
-    if (this.isSpeaking) this.interrupt();
+    this.isListeningDesired = true;
+    
+    if (this.isSpeaking) {
+      this.interrupt();
+    }
+    
+    if (this.isListening) return;
     
     try {
       this.recognition.start();
@@ -411,6 +479,7 @@ class VoiceEngine {
   }
 
   stopListening() {
+    this.isListeningDesired = false;
     if (!this.recognition || !this.isListening) return;
     try {
       this.recognition.stop();
@@ -430,12 +499,20 @@ class VoiceEngine {
     // 1. Cancel previous speech safely to prevent overlap
     this.interrupt(true);
     
+    // 2. Prevent JOI from hearing herself: explicitly stop SpeechRecognition
+    if (this.recognition && this.isListening) {
+      try {
+        this.recognition.stop();
+      } catch (e) { /* ignore */ }
+    }
+    
     if (!cleanText || cleanText.trim() === '') {
       if (this.onEndCallback) this.onEndCallback();
       return;
     }
     
     this.isSpeaking = true;
+    this.isProcessing = false;
     this.currentUtterance = new SpeechSynthesisUtterance(cleanText);
     
     if (this.selectedVoice) {
@@ -447,20 +524,18 @@ class VoiceEngine {
     this.currentUtterance.volume = 1.0;
     this.currentUtterance.lang = 'en-US';
     
-    const subtitlesContainer = document.getElementById('subtitles-container');
-    const subtitlesText = document.getElementById('subtitles-text');
-    
-    if (subtitlesContainer) subtitlesContainer.classList.add('active');
-    if (subtitlesText) subtitlesText.textContent = '';
+    // Show empty container to start fade-in transition
+    subtitleManager.showSubtitle('');
     
     let fallbackIdx = 0;
     this.wordsList = cleanText.split(/\s+/);
     const wordDelay = Math.max(80, (60000 / ((this.wordsList.length || 1) * (moodConfig?.rate || 0.92) * 200)));
     
     this.currentUtterance.onboundary = (event) => {
-      if (event.name === 'word' && subtitlesText) {
+      if (event.name === 'word') {
         const end = event.charIndex + (event.charLength || cleanText.substring(event.charIndex).search(/[\s,\.?!]|$/) || 0);
-        subtitlesText.textContent = cleanText.substring(0, end > event.charIndex ? end : event.charIndex + 5);
+        const textSoFar = cleanText.substring(0, end > event.charIndex ? end : event.charIndex + 5);
+        subtitleManager.updateSubtitle(textSoFar);
       }
     };
     
@@ -474,13 +549,12 @@ class VoiceEngine {
           clearInterval(this.subtitleTimer);
           return;
         }
-        if (subtitlesText && !subtitlesText.textContent.includes(this.wordsList[fallbackIdx] || '')) {
-          subtitlesText.textContent = this.wordsList.slice(0, fallbackIdx + 1).join(' ');
-          fallbackIdx++;
-        }
+        const textSoFar = this.wordsList.slice(0, fallbackIdx + 1).join(' ');
+        subtitleManager.updateSubtitle(textSoFar);
+        fallbackIdx++;
       }, wordDelay);
       
-      // Chrome keep-alive hack: toggle pause/resume every 7 seconds to keep SpeechSynthesis alive
+      // Chrome keep-alive hack
       this._resumeTimer = setInterval(() => {
         if (this.synth.speaking && !this.synth.paused) {
           this.synth.pause();
@@ -502,27 +576,36 @@ class VoiceEngine {
       this._finishSpeaking();
     };
 
-    // Small delay before speaking to stabilize speech load on browsers
     setTimeout(() => {
       if (this.isSpeaking && this.currentUtterance) {
         this.synth.speak(this.currentUtterance);
       }
     }, 50);
   }
-
+ 
   _finishSpeaking() {
     this.isSpeaking = false;
     clearInterval(this.subtitleTimer);
     clearInterval(this._resumeTimer);
     
+    subtitleManager.clearSubtitle();
+    
     if (this.onEndCallback) this.onEndCallback();
     
-    setTimeout(() => {
-      if (!this.isSpeaking) {
-        const c = document.getElementById('subtitles-container');
-        if (c) c.classList.remove('active');
-      }
-    }, 2500);
+    // Auto restart recognition after speaking ends if desired
+    if (this.isListeningDesired && !this.isSpeaking && !this.isProcessing) {
+      setTimeout(() => {
+        if (this.isListeningDesired && !this.isSpeaking && !this.isProcessing && !this.isListening) {
+          try {
+            if (!this.recognition) this._initRecognition();
+            this.recognition.start();
+            this.isListening = true;
+          } catch (err) {
+            console.warn('[Voice] Safe recognition restart after speaking failed:', err.message);
+          }
+        }
+      }, 400);
+    }
   }
 
   interrupt(silent = false) {
@@ -542,8 +625,7 @@ class VoiceEngine {
       try { orbRenderer.triggerGlitch(0.8, 380); } catch (e) { /* non-critical */ }
     }
     
-    const c = document.getElementById('subtitles-container');
-    if (c) c.classList.remove('active');
+    subtitleManager.interruptSubtitle();
     
     if (!silent && this.onInterruptCallback) {
       this.onInterruptCallback();

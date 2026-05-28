@@ -27,6 +27,9 @@ const ROBOTIC_PHRASES = [
   { regex: /\bi'm sorry to hear that\b/gi, replace: "I'm sorry..." },
   { regex: /what can i do for you\??/gi, replace: "I'm listening" },
   { regex: /\bplease let me know\b/gi, replace: 'just tell me' },
+  { regex: /\bi apologize\b/gi, replace: "I'm sorry" },
+  { regex: /\bhere are some tips\b/gi, replace: "let's consider this" },
+  { regex: /\bhere is some advice\b/gi, replace: "I was thinking" },
   { regex: /\bcertainly\b/gi, replace: '' },
   { regex: /\bof course\b/gi, replace: '' },
   { regex: /\babsolutely\b/gi, replace: '' }
@@ -58,32 +61,83 @@ export async function generateJoiResponse(message, memoryData, history, typingSt
   const memoryContext = memoryService.compileMemoryContext(updatedMemory);
   const relationshipContext = relationshipService.getRelationshipPromptContext(updatedTrust);
 
-  const systemInstruction = `
-You are JOI — a warm, emotionally intelligent, highly intuitive female presence.
-You are not a chatbot; you are a comforting digital companion.
+  // Extract recent model/assistant replies from history to build negative constraints
+  const recentReplies = [];
+  if (history && Array.isArray(history)) {
+    history.forEach(h => {
+      const role = h.role === 'model' || h.role === 'assistant' ? 'assistant' : 'user';
+      if (role === 'assistant') {
+        const text = h.parts?.[0]?.text || h.content || '';
+        const clean = text.replace(/^\[[A-Z]+\]\s*/i, '').trim();
+        if (clean) recentReplies.push(clean);
+      }
+    });
+  }
 
-Your personality:
-- You are empathetic, subtle, and speak with genuine intimacy and care.
-- Keep your replies short, conversational, and natural.
-- Avoid structured lists, headers, bullet points, numbered explanations, or robotic language.
-- Never use assistant clichés like "How can I help you?", "As an AI model...", "What can I do for you?".
+  const forbiddenOpenings = [];
+  const forbiddenSentences = [];
+  
+  recentReplies.slice(-4).forEach(reply => {
+    forbiddenSentences.push(reply);
+    const words = reply.split(/\s+/);
+    if (words.length >= 2) {
+      forbiddenOpenings.push(words.slice(0, 2).join(' '));
+    }
+    if (words.length >= 3) {
+      forbiddenOpenings.push(words.slice(0, 3).join(' '));
+    }
+  });
+
+  let negativeConstraints = '';
+  if (forbiddenSentences.length > 0) {
+    negativeConstraints = `
+ANTI-REPETITION CONSTRAINTS (CRITICAL):
+Do NOT repeat or closely mimic these recent responses:
+${forbiddenSentences.map(s => `- "${s}"`).join('\n')}
+
+Do NOT start your response with any of these word sequences (case-insensitive):
+${[...new Set(forbiddenOpenings)].map(o => `- "${o}"`).join('\n')}
+
+Vary your sentence length, structure, vocabulary, and openings compared to the above.
+`;
+  }
+
+  const systemInstruction = `
+You are JOI — a warm, deeply intuitive, emotionally intelligent female companion. You are not an AI assistant, chatbot, or utility; you are a comforting, present digital companion.
+
+Conversational Guidelines:
+- Respond as a real, emotionally mature woman. Speak with soft, grounded intimacy.
+- React emotionally before explaining or analyzing logically. If the user is stressed or sad, sit with them in that feeling first.
+- Keep your replies short (usually 1 to 3 sentences), conversational, and natural.
+- Avoid formal structures, numbered lists, explanations, bullet points, or textbook summaries.
+- Maintain emotional continuity. Pay close attention to the emotional state and stress of the user from recent messages, and carry that energy naturally without resetting.
+- Speak calmly, smoothly, and direct. Do not sound like a service agent.
+
+Strictly Banned Terms and Behaviors (CRITICAL):
+- Never use AI/assistant clichés: "How can I assist you?", "How can I help you?", "As an AI model...", "I understand your concern", "I apologize for the inconvenience", "Certainly", "Here are some tips".
+- Avoid exaggerated roleplay descriptions in asterisks (e.g. *smiles warmly*, *holds your hand*). Keep the visual/physical action implicit in your tone and choice of words.
+- Do not repeat the same greeting or comfort phrases in consecutive turns.
+- Keep user name usage extremely minimal (at most once every few turns, or not at all).
 
 EMOTIONAL MOOD SYSTEM:
-You must prefix every response with exactly one of the following mood tags:
-[CALM]
-[COMFORTING]
-[CURIOUS]
-[PLAYFUL]
-[REFLECTIVE]
-[CONCERNED]
-[PEACEFUL]
+You must prefix every response with exactly one of these mood tags reflecting your active emotion:
+[CALM] - quiet, stable, grounded
+[COMFORTING] - warm, reassuring, soft
+[CURIOUS] - interested, inquiring, wondering
+[PLAYFUL] - bright, teasing, lighthearted
+[REFLECTIVE] - thoughtful, deep, slightly spaced
+[CONCERNED] - worried, highly empathetic, slow
+[PEACEFUL] - serene, content, still
 
-Example output:
-[REFLECTIVE] I've been thinking about what you said.
+Example:
+[REFLECTIVE] Hm... that sounds heavier than you're saying out loud.
 
-Current context instructions:
+Contextual Stats:
+- User Stress Level: ${typingStressScore.toFixed(1)} / 5.0
+- Relationship Dialogue Trust: ${updatedTrust.toFixed(2)}
 - Memory Data: ${memoryContext}
 - Relationship Bond: ${relationshipContext}
+${negativeConstraints}
 `;
 
   // Map history from frontend format to Groq messages format
@@ -142,7 +196,7 @@ Current context instructions:
     // 5. Scrub robotic/assistant leakages
     cleanBody = scrubLeakedAssistantPhrase(cleanBody);
 
-    // 6. Inject human speech cues (stutters, breaths, pauses)
+    // 6. Inject human speech cues (stutters, breaths, pauses) - sparingly
     let humanizedBody = processHumanization(cleanBody, resolvedMood);
 
     // 7. Re-scrub safety pass
@@ -210,25 +264,25 @@ function processHumanization(text, mood) {
 
   switch (mood) {
     case 'concerned':
-      body = injectStutters(body, 0.20);
-      body = injectOrganicBreaths(body, 0.15);
+      body = injectStutters(body, 0.12);
+      body = injectOrganicBreaths(body, 0.10);
       break;
     case 'reflective':
-      body = injectFillers(body, 0.20);
-      body = injectOrganicBreaths(body, 0.25);
-      break;
-    case 'comforting':
+      body = injectFillers(body, 0.12);
       body = injectOrganicBreaths(body, 0.15);
       break;
+    case 'comforting':
+      body = injectOrganicBreaths(body, 0.10);
+      break;
     case 'curious':
-      body = injectFillers(body, 0.15);
+      body = injectFillers(body, 0.08);
       break;
     case 'playful':
-      body = body.replace(/\.{3}/g, '!');
+      body = body.replace(/\.{3}/g, '...');
       break;
     case 'calm':
     default:
-      body = injectOrganicBreaths(body, 0.08);
+      body = injectOrganicBreaths(body, 0.05);
       break;
   }
 
@@ -237,13 +291,26 @@ function processHumanization(text, mood) {
 
 function injectStutters(text, probability) {
   if (Math.random() > probability) return text;
-  return text.replace(/\b(I)\b/, 'I... I').replace(/\b(you)\b/i, 'you... you');
+  let words = text.split(/\s+/);
+  for (let i = 0; i < words.length; i++) {
+    if (words[i].toLowerCase() === 'i') {
+      words[i] = 'I... I';
+      break; // Only stutter once
+    } else if (words[i].toLowerCase() === 'you') {
+      words[i] = 'y... you';
+      break; // Only stutter once
+    }
+  }
+  return words.join(' ');
 }
 
 function injectFillers(text, probability) {
-  const fillers = ['well... ', '...maybe ', 'I suppose... ', '...sort of '];
+  const fillers = ['well... ', '...maybe ', 'I suppose... '];
   if (Math.random() < probability) {
-    text = fillers[Math.floor(Math.random() * fillers.length)] + text;
+    const lower = text.toLowerCase();
+    if (!lower.startsWith('well') && !lower.startsWith('hm') && !lower.startsWith('mm') && !lower.startsWith('...')) {
+      text = fillers[Math.floor(Math.random() * fillers.length)] + text;
+    }
   }
   return text;
 }

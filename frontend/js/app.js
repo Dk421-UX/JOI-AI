@@ -84,13 +84,12 @@ document.addEventListener('DOMContentLoaded', () => {
   voiceEngine.onStartCallback = () => setAppState('speaking');
   voiceEngine.onEndCallback = () => {
     setAppState('idle');
-    if (voiceModeToggle && voiceModeToggle.checked) {
-      setTimeout(() => {
-        if (appState === 'idle') {
-          voiceEngine.startListening();
-          if (micBtn) micBtn.classList.add('listening');
-        }
-      }, 500);
+    if (micBtn) {
+      if (voiceEngine.isListeningDesired) {
+        micBtn.classList.add('listening');
+      } else {
+        micBtn.classList.remove('listening');
+      }
     }
   };
   voiceEngine.onTranscriptCallback = (t) => {
@@ -98,7 +97,12 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   voiceEngine.onInterruptCallback = () => {
     setAppState('idle');
-    if (micBtn) micBtn.classList.remove('listening');
+    if (micBtn && !voiceEngine.isListeningDesired) {
+      micBtn.classList.remove('listening');
+    }
+  };
+  voiceEngine.onStartListeningCallback = () => {
+    if (micBtn) micBtn.classList.add('listening');
   };
 
   // 7. UI listeners
@@ -175,9 +179,10 @@ function bindUIEvents() {
       if (audioSynth.isInitialized) audioSynth.playClick();
       registerInteractionActivity();
 
-      if (voiceEngine.isListening) {
+      if (voiceEngine.isListeningDesired) {
         voiceEngine.stopListening();
         micBtn.classList.remove('listening');
+        if (voiceModeToggle) voiceModeToggle.checked = false;
       } else {
         voiceEngine.startListening();
         micBtn.classList.add('listening');
@@ -205,6 +210,19 @@ function bindUIEvents() {
   if (ambientToggle) {
     ambientToggle.addEventListener('change', (e) => {
       audioSynth.toggleMute(!e.target.checked);
+    });
+  }
+
+  if (voiceModeToggle) {
+    voiceModeToggle.addEventListener('change', (e) => {
+      if (audioSynth.isInitialized) audioSynth.playClick();
+      if (e.target.checked) {
+        voiceEngine.startListening();
+        if (micBtn) micBtn.classList.add('listening');
+      } else {
+        voiceEngine.stopListening();
+        if (micBtn) micBtn.classList.remove('listening');
+      }
     });
   }
 
