@@ -213,7 +213,8 @@ body, html {
 .presence-header,
 .presence-body,
 .presence-footer,
-.dashboard {
+.dashboard,
+.mobile-settings-btn {
   pointer-events: auto;
 }
 
@@ -346,12 +347,13 @@ body, html {
   padding: clamp(1rem, 3.5vw, 1.5rem) clamp(1.25rem, 4vw, 2rem);
   border-radius: 12px;
   opacity: 0;
-  transform: translateY(15px);
-  filter: blur(6px);
+  transform: translateY(8px);
+  filter: blur(2px);
+  will-change: transform, opacity;
   transition:
-    opacity   0.8s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1),
-    filter    0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity   0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    filter    0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .subtitles-container.active {
@@ -362,22 +364,22 @@ body, html {
 
 .subtitles-container.fade-out {
   opacity: 0;
-  transform: translateY(-8px);
-  filter: blur(10px);
+  transform: translateY(-4px);
+  filter: blur(2px);
   transition:
-    opacity   1.2s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 1.2s cubic-bezier(0.16, 1, 0.3, 1),
-    filter    1.2s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity   0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    filter    0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .subtitles-container.interrupted {
   opacity: 0;
-  transform: scale(0.97);
-  filter: blur(14px);
+  transform: scale(0.98);
+  filter: blur(4px);
   transition:
-    opacity   0.25s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-    filter    0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity   0.2s cubic-bezier(0.25, 1, 0.5, 1),
+    transform 0.2s cubic-bezier(0.25, 1, 0.5, 1),
+    filter    0.25s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .subtitles-glow {
@@ -401,7 +403,6 @@ body, html {
   color: #ffffff;
   text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 15px var(--accent-color-glow);
   word-wrap: break-word;
-  transition: var(--transition-smooth);
   min-height: 2.4em;
 }
 
@@ -1088,6 +1089,7 @@ input:checked + .slider:before {
   /* ── Mobile-Only Settings Button ───────────────────────── */
   .mobile-settings-btn {
     display: flex;
+    pointer-events: auto;
     position: fixed;
     bottom: calc(90px + env(safe-area-inset-bottom, 0px));
     right: 16px;
@@ -1195,6 +1197,7 @@ input:checked + .slider:before {
     transform: translateY(100%);
     pointer-events: none;
     visibility: hidden;
+    will-change: transform;
     
     box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8);
     z-index: 30;
