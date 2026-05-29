@@ -52,7 +52,7 @@ class SubtitleManager {
         this.textElement.textContent = '';
         this.container.classList.remove('fade-out');
       }
-    }, 1200); // Matches the CSS transition duration
+    }, 400); // Matches the CSS transition duration
   }
 
   interruptSubtitle() {
