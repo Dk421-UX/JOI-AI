@@ -174,6 +174,8 @@ let micBtn;
 
 let dashboard;
 let dashboardToggle;
+let mobileSettingsBtn;
+let dashboardBackdrop;
 let ambientToggle;
 let voiceModeToggle;
 
@@ -326,6 +328,8 @@ function cacheUIElements() {
 
   dashboard = document.getElementById('dashboard');
   dashboardToggle = document.getElementById('dashboard-toggle');
+  mobileSettingsBtn = document.getElementById('mobile-settings-btn');
+  dashboardBackdrop = document.getElementById('dashboard-backdrop');
 
   ambientToggle = document.getElementById('ambient-toggle');
   voiceModeToggle = document.getElementById('voice-mode-toggle');
@@ -414,13 +418,72 @@ function bindUIEvents() {
     });
   }
 
-  // Dashboard Drawer Toggle
+  // Dashboard Drawer Toggle (Desktop)
   if (dashboardToggle && dashboard) {
     dashboardToggle.addEventListener('click', () => {
       dashboard.classList.toggle('open');
       if (audioSynth && audioSynth.isInitialized) {
         audioSynth.playClick();
       }
+    });
+  }
+
+  // Mobile Settings Button & Backdrop Click Event Listeners
+  const closeMobileSettings = () => {
+    if (dashboard) dashboard.classList.remove('open');
+    if (dashboardBackdrop) dashboardBackdrop.classList.remove('active');
+    if (audioSynth && audioSynth.isInitialized) {
+      audioSynth.playClick();
+    }
+  };
+
+  const openMobileSettings = () => {
+    if (dashboard) dashboard.classList.add('open');
+    if (dashboardBackdrop) dashboardBackdrop.classList.add('active');
+    if (audioSynth && audioSynth.isInitialized) {
+      audioSynth.playClick();
+    }
+  };
+
+  if (mobileSettingsBtn) {
+    mobileSettingsBtn.addEventListener('click', () => {
+      if (dashboard && dashboard.classList.contains('open')) {
+        closeMobileSettings();
+      } else {
+        openMobileSettings();
+      }
+    });
+  }
+
+  if (dashboardBackdrop) {
+    dashboardBackdrop.addEventListener('click', closeMobileSettings);
+  }
+
+  // Swipe-down touch gesture to close bottom sheet on mobile
+  if (dashboard) {
+    let touchStartY = 0;
+    let touchCurrentY = 0;
+    const dashboardContent = dashboard.querySelector('.dashboard-content');
+
+    dashboard.addEventListener('touchstart', (e) => {
+      touchStartY = e.touches[0].clientY;
+      touchCurrentY = touchStartY;
+    }, { passive: true });
+
+    dashboard.addEventListener('touchmove', (e) => {
+      touchCurrentY = e.touches[0].clientY;
+    }, { passive: true });
+
+    dashboard.addEventListener('touchend', () => {
+      const diffY = touchCurrentY - touchStartY;
+      const scrollTop = dashboardContent ? dashboardContent.scrollTop : 0;
+      
+      // Swipe down must be downwards (> 80px) and only trigger when content is at the top of scroll
+      if (diffY > 80 && scrollTop <= 0 && window.innerWidth <= 768) {
+        closeMobileSettings();
+      }
+      touchStartY = 0;
+      touchCurrentY = 0;
     });
   }
 
