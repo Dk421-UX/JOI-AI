@@ -16,7 +16,7 @@ class SubtitleManager {
     this.textElement = document.getElementById('subtitles-text');
   }
 
-  showSubtitle(text) {
+  transitionTo(text) {
     this._init();
     if (!this.container || !this.textElement) return;
 
@@ -25,9 +25,26 @@ class SubtitleManager {
       this.fadeTimeout = null;
     }
 
-    this.textElement.textContent = text;
-    this.container.classList.remove('fade-out', 'interrupted');
-    this.container.classList.add('active');
+    if (this.container.classList.contains('active') && this.textElement.textContent.trim()) {
+      this.container.classList.remove('active');
+      this.container.classList.add('fade-out');
+
+      this.fadeTimeout = setTimeout(() => {
+        this.textElement.textContent = text;
+        this.container.classList.remove('fade-out');
+        void this.container.offsetWidth;
+        this.container.classList.add('active');
+      }, 400);
+    } else {
+      this.textElement.textContent = text;
+      this.container.classList.remove('fade-out', 'interrupted');
+      void this.container.offsetWidth;
+      this.container.classList.add('active');
+    }
+  }
+
+  showSubtitle(text) {
+    this.transitionTo(text);
   }
 
   updateSubtitle(text) {
