@@ -939,6 +939,14 @@ input:checked + .slider:before {
    Toggle spans the full 56px top strip — large touch target.
    ══════════════════════════════════════════════════════════ */
 
+/* Mobile-only settings button & backdrop default state (hidden on desktop) */
+.mobile-settings-btn {
+  display: none;
+}
+.dashboard-backdrop {
+  display: none;
+}
+
 @media (max-width: 768px) {
 
   /* ── UI Shell ─────────────────────────────────────────── */
@@ -1077,100 +1085,190 @@ input:checked + .slider:before {
       avoids this cross-browser trap entirely. The peek tab
       ensures the toggle is always in the visible 56px strip.
   */
+  /* ── Mobile-Only Settings Button ───────────────────────── */
+  .mobile-settings-btn {
+    display: flex;
+    position: fixed;
+    bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.15) 0%, rgba(0, 0, 0, 0) 80%), var(--glass-bg);
+    border: 1px solid rgba(var(--accent-h), 100%, 75%, 0.25);
+    color: var(--accent-color);
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 24;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    box-shadow: 
+      0 0 15px rgba(var(--accent-h), 100%, 55%, 0.25),
+      inset 0 0 8px rgba(255, 255, 255, 0.1);
+    transition: 
+      transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+      box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
+      border-color 0.4s ease,
+      color 0.4s ease;
+  }
+
+  /* Holographic pulse effect outer ring */
+  .mobile-settings-btn::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 1px solid var(--accent-color);
+    opacity: 0.35;
+    pointer-events: none;
+    animation: holo-pulse 3s infinite ease-in-out;
+  }
+
+  .mobile-settings-btn:active {
+    transform: scale(0.92);
+    box-shadow: 0 0 25px var(--accent-color), inset 0 0 12px rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+
+  .mobile-settings-btn svg {
+    filter: drop-shadow(0 0 4px var(--accent-color-glow));
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .mobile-settings-btn:hover svg {
+    transform: rotate(45deg);
+  }
+
+  @keyframes holo-pulse {
+    0% {
+      transform: scale(1);
+      opacity: 0.3;
+    }
+    50% {
+      transform: scale(1.12);
+      opacity: 0.6;
+      border-color: rgba(var(--accent-h), 100%, 75%, 0.8);
+      box-shadow: 0 0 10px var(--accent-color-glow);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 0.3;
+    }
+  }
+
+  /* ── Mobile Backdrop Overlay ───────────────────────────── */
+  .dashboard-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(4, 4, 8, 0.7);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    z-index: 25;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .dashboard-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ── Redesigned Bottom Sheet ───────────────────────────── */
   .dashboard {
     position: fixed;
     top: auto;
     left: 0;
     right: 0;
-    /* Anchor bottom edge just above the input dock */
-    bottom: calc(var(--dock-h) + env(safe-area-inset-bottom, 0px));
+    bottom: 0;
     width: 100%;
     height: auto;
-    max-height: calc(80dvh - var(--dock-h));
-    max-height: calc(80vh  - var(--dock-h));  /* fallback */
-    max-height: calc(80dvh - var(--dock-h));  /* dvh override */
+    max-height: 60vh;
+    max-height: 60dvh;
     border-left: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px 20px 0 0;
-    /* Closed: only peek tab visible */
-    transform: translateY(calc(100% - var(--sheet-peek)));
-    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.65);
-    z-index: 28;
-    /* Override desktop translateX */
-    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    border-top: 1px solid rgba(var(--accent-h), 100%, 75%, 0.15); /* Holographic edge highlight */
+    border-radius: 24px 24px 0 0;
+    
+    /* Completely hidden on closed state */
+    transform: translateY(100%);
+    pointer-events: none;
+    visibility: hidden;
+    
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8);
+    z-index: 30;
+    
+    /* Spring slide transition */
+    transition: 
+      transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.15), 
+      visibility 0.5s ease;
   }
 
   .dashboard.open {
     transform: translateY(0);
+    pointer-events: auto;
+    visibility: visible;
   }
 
-  /* Drag handle pill at very top of sheet */
+  /* Drag handle pill visual cue */
   .dashboard::before {
     content: "";
     position: absolute;
-    top: 10px;
+    top: 12px;
     left: 50%;
     transform: translateX(-50%);
-    width: 36px;
+    width: 40px;
     height: 4px;
-    background: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.25);
     border-radius: 2px;
     pointer-events: none;
   }
 
-  /*
-    Toggle becomes the entire top strip (56px).
-    Full-width ensures the largest possible touch target.
-    position:absolute is intentional — avoids the
-    backdrop-filter / fixed containing-block issue.
-  */
+  /* Remove/hide the original dashboard toggle tab on mobile */
   .dashboard-toggle {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    height: var(--sheet-peek);
-    border-radius: 20px 20px 0 0;
-    background: transparent;
-    border: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: var(--text-muted);
-    transform: none;             /* remove desktop translateY(-50%) */
-    z-index: 1;
-    transition: color 0.3s ease;
+    display: none !important;
   }
 
-  .dashboard-toggle:hover {
-    color: var(--accent-color);
-  }
-
-  /*
-    Arrow: LEFT triangle rotated -90° = points UP (sheet can open ↑)
-           LEFT triangle rotated  90° = points DOWN (sheet can close ↓)
-  */
-  .toggle-arrow {
-    transform: rotate(-90deg);          /* ↑ when closed */
-  }
-
-  .dashboard.open .toggle-arrow {
-    transform: rotate(90deg);           /* ↓ when open */
-  }
-
-  /* Content starts below the 56px toggle tab */
+  /* Scrollable dashboard content container */
   .dashboard-content {
-    padding-top: calc(var(--sheet-peek) + 0.5rem);
+    padding-top: 2rem; /* space for the top handle */
     padding-left: 1.5rem;
     padding-right: 1.5rem;
-    padding-bottom: 1.5rem;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    height: 100%;
+    max-height: calc(60vh - 2rem);
+    max-height: calc(60dvh - 2rem);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
     gap: 1.5rem;
   }
 
   .dash-divider {
     margin-top: -0.75rem;
+  }
+
+  /* Ensure all emotion buttons have a clean 44px+ height for touch target size */
+  .emotion-btn {
+    min-height: 44px;
+  }
+
+  /* Elevate toggles to have safe touch targets */
+  .toggle-switch {
+    width: 46px;
+    height: 26px;
+  }
+  
+  .slider:before {
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+  }
+  
+  input:checked + .slider:before {
+    transform: translateX(20px);
   }
 
   /* ── Creator branding ────────────────────────────────── */
