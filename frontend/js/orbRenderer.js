@@ -57,11 +57,26 @@ class OrbRenderer {
     this.width = this.canvas.width;
     this.height = this.canvas.height;
     this.centerX = this.width / 2;
-    this.centerY = this.height / 2;
+    
+    /*
+      Mobile orb positioning — requirement: move orb upward ~10% on mobile.
+      
+      On desktop (width ≥ 768px): orb is centred at 50% height — standard.
+      On mobile  (width  < 768px): orb is centred at 42% height — shifted
+        upward by 8% so the lower 58% of the viewport is free for the
+        subtitle text and the fixed input dock.
+      
+      This value is read by updateGaze() (via this.centerX / this.centerY)
+      so gaze tracking and the pupil follow-cursor effect both naturally
+      pivot around the new orb center. No other rendering code needs changing.
+    */
+    this.centerY = this.width < 768
+      ? this.height * 0.42   // mobile: biased upward
+      : this.height * 0.50;  // desktop: exact centre
     
     // Settle particle density
     if (this.width < 768) {
-      this.maxParticles = 48; // Mobile limits
+      this.maxParticles = 48; // Mobile: reduce for performance
     } else {
       this.maxParticles = this.isDegraded ? 60 : 120;
     }
