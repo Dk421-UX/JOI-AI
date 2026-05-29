@@ -56,7 +56,8 @@ body, html {
 .joi-atmosphere {
   position: relative;
   width: 100vw;
-  height: 100vh;
+  height: 100vh;   /* fallback for browsers without dvh support */
+  height: 100dvh;  /* dynamic viewport height — fixes mobile toolbar clipping */
 }
 
 #canvas {
@@ -315,6 +316,7 @@ body, html {
   justify-content: center;
   z-index: 12;
   width: 100%;
+  padding-bottom: env(safe-area-inset-bottom, 0px); /* iPhone home-bar clearance */
 }
 
 .input-panel {
@@ -674,7 +676,8 @@ input:checked + .slider:before {
   top: 0;
   left: 0;
   width: 100vw;
-  height: 100vh;
+  height: 100vh;   /* fallback */
+  height: 100dvh;  /* dynamic viewport height */
   background: radial-gradient(circle at center, rgba(12, 14, 28, 0.98) 0%, rgba(4, 4, 8, 0.99) 100%);
   display: flex;
   align-items: center;
