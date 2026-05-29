@@ -303,6 +303,8 @@ class VoiceEngine {
     this.isProcessing = false;
     
     this.wordsList = [];
+    this.speechChunks = [];
+    this.currentChunkIndex = 0;
     this.subtitleTimer = null;
     
     this.onStartCallback = null;
@@ -488,6 +490,56 @@ class VoiceEngine {
 
   // ── Speech Synthesis (TTS) ──────────────────────────────────────────────────
 
+  splitTextIntoChunks(text, maxLen = 120) {
+    if (!text) return [];
+    
+    // Normalize spaces and remove brackets like [PEACEFUL] or [calm]
+    let clean = text.replace(/\[[A-Z\s]+\]/gi, '').trim();
+    
+    // Split into sentences using regex matching punctuation while preserving it
+    const sentences = clean.match(/[^.!?。！？]+[.!?。！？]*/g) || [clean];
+    
+    const chunks = [];
+    let currentChunk = '';
+    
+    for (let i = 0; i < sentences.length; i++) {
+      const sentence = sentences[i];
+      if ((currentChunk + sentence).length > maxLen) {
+        if (currentChunk.trim()) {
+          chunks.push(currentChunk.trim());
+        }
+        currentChunk = sentence;
+      } else {
+        currentChunk += (currentChunk ? ' ' : '') + sentence;
+      }
+    }
+    if (currentChunk.trim()) {
+      chunks.push(currentChunk.trim());
+    }
+    
+    // Fallback: split long sentences without punctuation by words
+    const finalChunks = [];
+    for (const chunk of chunks) {
+      if (chunk.length > maxLen) {
+        const words = chunk.split(/\s+/);
+        let subChunk = '';
+        for (const word of words) {
+          if ((subChunk + ' ' + word).length > maxLen) {
+            if (subChunk.trim()) finalChunks.push(subChunk.trim());
+            subChunk = word;
+          } else {
+            subChunk = subChunk ? subChunk + ' ' + word : word;
+          }
+        }
+        if (subChunk.trim()) finalChunks.push(subChunk.trim());
+      } else {
+        finalChunks.push(chunk);
+      }
+    }
+    
+    return finalChunks.filter(c => c.trim().length > 0);
+  }
+
   speak(cleanText, moodConfig) {
     if (!this.synth) {
       console.warn('[Voice] Speech Synthesis not supported.');
@@ -511,9 +563,37 @@ class VoiceEngine {
       return;
     }
     
+    // 3. Split response into natural sentence chunks
+    this.speechChunks = this.splitTextIntoChunks(cleanText, 130);
+    this.currentChunkIndex = 0;
+    
+    if (this.speechChunks.length === 0) {
+      if (this.onEndCallback) this.onEndCallback();
+      return;
+    }
+    
     this.isSpeaking = true;
     this.isProcessing = false;
-    this.currentUtterance = new SpeechSynthesisUtterance(cleanText);
+    
+    if (this.onStartCallback) this.onStartCallback();
+    
+    // Start sequential chunk playback
+    this._speakChunk(0, moodConfig);
+  }
+
+  _speakChunk(index, moodConfig) {
+    if (!this.isSpeaking) return;
+    
+    if (index >= this.speechChunks.length) {
+      console.log('[VOICE] Final speech complete');
+      this._finishSpeaking();
+      return;
+    }
+    
+    const chunkText = this.speechChunks[index];
+    console.log('[VOICE] Starting chunk');
+    
+    this.currentUtterance = new SpeechSynthesisUtterance(chunkText);
     
     if (this.selectedVoice) {
       this.currentUtterance.voice = this.selectedVoice;
@@ -524,70 +604,47 @@ class VoiceEngine {
     this.currentUtterance.volume = 1.0;
     this.currentUtterance.lang = 'en-US';
     
-    // Show empty container to start fade-in transition
-    subtitleManager.showSubtitle('');
+    // Update subtitles container with smooth transition
+    subtitleManager.transitionTo(chunkText);
     
-    let fallbackIdx = 0;
-    this.wordsList = cleanText.split(/\s+/);
-    const wordDelay = Math.max(80, (60000 / ((this.wordsList.length || 1) * (moodConfig?.rate || 0.92) * 200)));
-    
-    this.currentUtterance.onboundary = (event) => {
-      if (event.name === 'word') {
-        const end = event.charIndex + (event.charLength || cleanText.substring(event.charIndex).search(/[\s,\.?!]|$/) || 0);
-        const textSoFar = cleanText.substring(0, end > event.charIndex ? end : event.charIndex + 5);
-        subtitleManager.updateSubtitle(textSoFar);
-      }
-    };
-    
-    this.currentUtterance.onstart = () => {
-      console.log('[Voice] Speaking:', cleanText.substring(0, 50) + '...');
-      if (this.onStartCallback) this.onStartCallback();
-      
-      // Fallback word rendering ticker for browsers that do not fire onboundary correctly
-      this.subtitleTimer = setInterval(() => {
-        if (!this.synth.speaking || fallbackIdx >= this.wordsList.length) {
-          clearInterval(this.subtitleTimer);
-          return;
-        }
-        const textSoFar = this.wordsList.slice(0, fallbackIdx + 1).join(' ');
-        subtitleManager.updateSubtitle(textSoFar);
-        fallbackIdx++;
-      }, wordDelay);
-      
-      // Chrome keep-alive hack
-      this._resumeTimer = setInterval(() => {
-        if (this.synth.speaking && !this.synth.paused) {
-          this.synth.pause();
-          this.synth.resume();
-        } else {
-          clearInterval(this._resumeTimer);
-        }
-      }, 7000);
-    };
-
     this.currentUtterance.onend = () => {
-      this._finishSpeaking();
+      console.log('[VOICE] Chunk completed');
+      this.currentChunkIndex = index + 1;
+      
+      // Speak next chunk with a tiny delay to ensure smooth hardware transition
+      setTimeout(() => {
+        if (this.isSpeaking && this.currentChunkIndex === index + 1) {
+          this._speakChunk(this.currentChunkIndex, moodConfig);
+        }
+      }, 80);
     };
-
+    
     this.currentUtterance.onerror = (e) => {
-      if (e.error !== 'interrupted' && e.error !== 'canceled') {
-        console.error('[Voice] TTS error:', e.error);
+      if (e.error === 'interrupted') {
+        console.log('[VOICE] Interrupted');
+        return;
       }
-      this._finishSpeaking();
+      if (e.error === 'canceled') {
+        console.log('[VOICE] Cancelled');
+        return;
+      }
+      console.error(`[VOICE] Chunk error in chunk ${index + 1}:`, e.error);
+      
+      // Auto recovery: skip to next chunk
+      this.currentChunkIndex = index + 1;
+      setTimeout(() => {
+        if (this.isSpeaking && this.currentChunkIndex === index + 1) {
+          this._speakChunk(this.currentChunkIndex, moodConfig);
+        }
+      }, 80);
     };
-
-    setTimeout(() => {
-      if (this.isSpeaking && this.currentUtterance) {
-        this.synth.speak(this.currentUtterance);
-      }
-    }, 50);
+    
+    // Web Speech API speak call
+    this.synth.speak(this.currentUtterance);
   }
  
   _finishSpeaking() {
     this.isSpeaking = false;
-    clearInterval(this.subtitleTimer);
-    clearInterval(this._resumeTimer);
-    
     subtitleManager.clearSubtitle();
     
     if (this.onEndCallback) this.onEndCallback();
@@ -611,9 +668,6 @@ class VoiceEngine {
   interrupt(silent = false) {
     if (!this.isSpeaking && !this.synth?.speaking) return;
     
-    clearInterval(this.subtitleTimer);
-    clearInterval(this._resumeTimer);
-    
     if (this.synth) {
       this.synth.cancel();
     }
@@ -630,7 +684,12 @@ class VoiceEngine {
     if (!silent && this.onInterruptCallback) {
       this.onInterruptCallback();
     }
-    console.log('[Voice] Synthesis interrupted.');
+    
+    if (silent) {
+      console.log('[VOICE] Cancelled');
+    } else {
+      console.log('[VOICE] Interrupted');
+    }
   }
 }
 
