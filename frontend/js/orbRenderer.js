@@ -245,7 +245,7 @@ class OrbRenderer {
       }
     }
     
-    const baseRadius = this.width < 768 ? 90 : 150;
+    const baseRadius = this.width < 768 ? Math.min(this.width * 0.32, 125) : 150;
     
     // Heartbeat double pulse
     const beatInterval = (60 * 1000) / (moodConfig.heartRateBpm || 60);

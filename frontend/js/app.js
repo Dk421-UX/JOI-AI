@@ -406,14 +406,74 @@ function bindUIEvents() {
         voiceEngine.startListening();
 
         micBtn.classList.add('listening');
+
+        if (voiceModeToggle) {
+          voiceModeToggle.checked = true;
+        }
       }
     });
   }
+
+  // Dashboard Drawer Toggle
+  if (dashboardToggle && dashboard) {
+    dashboardToggle.addEventListener('click', () => {
+      dashboard.classList.toggle('open');
+      if (audioSynth && audioSynth.isInitialized) {
+        audioSynth.playClick();
+      }
+    });
+  }
+
+  // Ambient Sound Settings Toggle
+  if (ambientToggle) {
+    ambientToggle.addEventListener('change', () => {
+      if (audioSynth && audioSynth.isInitialized) {
+        audioSynth.toggleMute(!ambientToggle.checked);
+        audioSynth.playClick();
+      }
+    });
+  }
+
+  // Voice Mode Auto-listen Settings Toggle
+  if (voiceModeToggle) {
+    voiceModeToggle.addEventListener('change', () => {
+      if (audioSynth && audioSynth.isInitialized) {
+        audioSynth.playClick();
+      }
+      if (voiceModeToggle.checked) {
+        voiceEngine.startListening();
+        if (micBtn) micBtn.classList.add('listening');
+      } else {
+        voiceEngine.stopListening();
+        if (micBtn) micBtn.classList.remove('listening');
+      }
+    });
+  }
+
+  // Emotion manual overrides
+  const emotionBtns = document.querySelectorAll('.emotion-btn');
+  emotionBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mood = btn.getAttribute('data-emotion');
+      applyJoiMoodState(mood);
+      
+      emotionBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      try {
+        orbRenderer.triggerGlitch(0.5, 300);
+        if (audioSynth && audioSynth.isInitialized) {
+          audioSynth.playClick();
+        }
+      } catch (e) {}
+    });
+  });
 }
 
 /* ──────────────────────────────────────────────────────────
    ESTABLISH SYNC
-────────────────────────────────────────────────────────── */
+   ...
+*/
 
 function establishSync() {
 
@@ -424,6 +484,11 @@ function establishSync() {
   audioSynth.initialize(() => MOODS[currentMood]);
 
   audioSynth.resumeContext();
+
+  // Enforce initial ambient sound setting
+  if (ambientToggle && !ambientToggle.checked) {
+    audioSynth.toggleMute(true);
+  }
 
   audioSynth.playSyncSweep();
 

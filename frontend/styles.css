@@ -133,7 +133,7 @@ body, html {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 2.5rem;
+  padding: clamp(1rem, 4vw, 2.5rem);
   pointer-events: none;
 }
 
@@ -147,6 +147,7 @@ body, html {
   justify-content: space-between;
   align-items: center;
   z-index: 12;
+  gap: 1rem;
 }
 
 .joi-brand {
@@ -164,7 +165,7 @@ body, html {
   left: 0;
   margin-top: 1px;
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: clamp(0.5rem, 2vw, 0.58rem);
   letter-spacing: 1.8px;
   color: rgba(255, 255, 255, 0.42);
   text-transform: uppercase;
@@ -182,7 +183,7 @@ body, html {
 }
 
 .brand-glow {
-  font-size: 1.8rem;
+  font-size: clamp(1.2rem, 5vw, 1.8rem);
   font-weight: 700;
   color: #fff;
   text-shadow: 0 0 10px var(--accent-color), 0 0 20px var(--accent-color-glow);
@@ -190,7 +191,7 @@ body, html {
 }
 
 .brand-ver {
-  font-size: 0.8rem;
+  font-size: clamp(0.7rem, 2.5vw, 0.8rem);
   color: var(--text-muted);
   font-weight: 300;
   margin-bottom: 4px;
@@ -199,7 +200,7 @@ body, html {
 .system-status {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: clamp(6px, 2vw, 10px);
   font-family: var(--font-mono);
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
@@ -220,7 +221,7 @@ body, html {
 }
 
 .status-text {
-  font-size: 0.75rem;
+  font-size: clamp(0.65rem, 2.2vw, 0.75rem);
   font-weight: 500;
   letter-spacing: 1.5px;
   color: var(--text-primary);
@@ -238,15 +239,15 @@ body, html {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding-bottom: 5vh;
+  padding-bottom: clamp(1rem, 4vh, 3.5rem);
 }
 
 .subtitles-container {
   position: relative;
   max-width: 700px;
-  width: 90%;
+  width: 100%;
   text-align: center;
-  padding: 1.5rem 2rem;
+  padding: clamp(1rem, 3.5vw, 1.5rem) clamp(1.25rem, 4vw, 2rem);
   border-radius: 12px;
   opacity: 0;
   transform: translateY(15px);
@@ -297,8 +298,8 @@ body, html {
 }
 
 .subtitles-text {
-  font-size: 1.55rem;
-  line-height: 1.55;
+  font-size: clamp(1.1rem, 4vw, 1.55rem);
+  line-height: 1.5;
   font-weight: 300;
   letter-spacing: 0.5px;
   color: #ffffff;
@@ -313,12 +314,13 @@ body, html {
   display: flex;
   justify-content: center;
   z-index: 12;
+  width: 100%;
 }
 
 .input-panel {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: clamp(10px, 2.5vw, 15px);
   width: 100%;
   max-width: 600px;
 }
@@ -330,10 +332,12 @@ body, html {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: 30px;
-  padding: 6px 6px 6px 18px;
+  padding: 6px;
+  padding-left: clamp(12px, 3.5vw, 18px);
   backdrop-filter: var(--glass-blur);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  min-height: 52px;
 }
 
 .input-wrapper:focus-within {
@@ -347,9 +351,10 @@ body, html {
   border: none;
   outline: none;
   color: #fff;
-  font-size: 0.95rem;
+  font-size: 16px; /* 16px prevents iOS zoom on focus */
   font-family: var(--font-sans);
   font-weight: 300;
+  padding-right: 8px;
 }
 
 .input-wrapper input::placeholder {
@@ -360,8 +365,8 @@ body, html {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  width: 36px;
-  height: 36px;
+  width: 40px; /* Touch target optimized */
+  height: 40px; /* Touch target optimized */
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -386,8 +391,8 @@ body, html {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   color: #fff;
-  width: 48px;
-  height: 48px;
+  width: 52px; /* Touch target optimized */
+  height: 52px; /* Touch target optimized */
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -396,6 +401,7 @@ body, html {
   backdrop-filter: var(--glass-blur);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   transition: var(--transition-smooth);
+  flex-shrink: 0;
 }
 
 .mic-btn:hover:not(:disabled) {
@@ -437,7 +443,7 @@ body, html {
   100% { transform: scale(1.5); opacity: 0; }
 }
 
-/* Dashboard Panel */
+/* Dashboard Panel - Desktop defaults */
 .dashboard {
   position: fixed;
   top: 0;
@@ -457,7 +463,7 @@ body, html {
   transform: translateX(0);
 }
 
-/* Latch toggle */
+/* Latch toggle - Desktop defaults */
 .dashboard-toggle {
   position: absolute;
   top: 50%;
@@ -602,12 +608,16 @@ input:checked + .slider:before {
   background: rgba(255,255,255,0.03);
   border: 1px solid var(--glass-border);
   border-radius: 4px;
-  padding: 8px;
+  padding: 10px 8px; /* Increased padding for better touch targeting */
   font-size: 0.75rem;
   color: var(--text-muted);
   cursor: pointer;
   font-family: var(--font-mono);
   transition: var(--transition-smooth);
+  min-height: 38px; /* Larger vertical height for button clicks */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .emotion-btn:hover {
@@ -672,6 +682,7 @@ input:checked + .slider:before {
   z-index: 100;
   opacity: 1;
   transition: opacity 1s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 1.5rem;
 }
 
 .overlay-welcome.fade-out {
@@ -682,16 +693,22 @@ input:checked + .slider:before {
 .welcome-box {
   text-align: center;
   max-width: 450px;
-  padding: 2.5rem;
+  width: 100%;
+  padding: clamp(1.5rem, 6vw, 2.5rem);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
+  gap: clamp(1rem, 4vh, 1.5rem);
+  background: rgba(13, 15, 30, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 24px;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-premium);
 }
 
 .welcome-logo {
   font-family: var(--font-mono);
-  font-size: 3.5rem;
+  font-size: clamp(2.5rem, 8vw, 3.5rem);
   font-weight: 700;
   color: #fff;
   letter-spacing: 6px;
@@ -699,13 +716,13 @@ input:checked + .slider:before {
 }
 
 .welcome-subtitle {
-  font-size: 1.05rem;
+  font-size: clamp(0.95rem, 3vw, 1.05rem);
   font-weight: 300;
   color: var(--text-primary);
 }
 
 .welcome-note {
-  font-size: 0.8rem;
+  font-size: clamp(0.75rem, 2.5vw, 0.8rem);
   line-height: 1.5;
   color: var(--text-muted);
 }
@@ -715,14 +732,18 @@ input:checked + .slider:before {
   border: 1px solid hsl(185, 85%, 55%);
   color: hsl(185, 85%, 55%);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: clamp(0.8rem, 2.5vw, 0.85rem);
   letter-spacing: 2px;
-  padding: 12px 28px;
+  padding: 14px 32px; /* Touch-optimized */
   border-radius: 30px;
   cursor: pointer;
   box-shadow: 0 0 15px hsla(185, 85%, 55%, 0.1);
   transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
   margin-top: 1rem;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sync-btn:hover {
@@ -732,60 +753,13 @@ input:checked + .slider:before {
   transform: translateY(-2px);
 }
 
-/* Responsiveness */
-@media (max-width: 768px) {
-  .presence-ui {
-    padding: 1.5rem;
-  }
-  
-  .brand-glow {
-    font-size: 1.4rem;
-  }
-  
-  .dashboard {
-    width: 100%;
-    border-left: none;
-  }
-  
-  .dashboard-toggle {
-    left: auto;
-    right: 15px;
-    top: 15px;
-    transform: none;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border-right: 1px solid var(--glass-border);
-  }
-  
-  .dashboard.open .dashboard-toggle {
-    right: 20px;
-    top: 20px;
-  }
-  
-  .toggle-arrow {
-    border-right: none;
-    border-top: 5px solid transparent;
-    border-bottom: 5px solid transparent;
-    border-left: 6px solid currentColor;
-  }
-  
-  .dashboard.open .toggle-arrow {
-    transform: rotate(180deg);
-  }
-  
-  .subtitles-text {
-    font-size: 1.25rem;
-  }
-}
-
 /* Creator Signature Branding */
 .creator-signature {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  margin-bottom: 2rem;
+  margin-bottom: clamp(1rem, 4vh, 2rem);
   width: 100%;
 }
 
@@ -800,7 +774,7 @@ input:checked + .slider:before {
 
 .creator-text {
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: clamp(0.55rem, 2vw, 0.65rem);
   font-weight: 400;
   letter-spacing: 4px;
   color: rgba(255, 255, 255, 0.45);
@@ -823,8 +797,88 @@ input:checked + .slider:before {
   }
 }
 
-/* Responsiveness overrides for creator logo */
+/* ──────────────────────────────────────────────────────────
+   RESPONSIVENESS (MOBILE-FIRST AND BREAKPOINT OVERRIDES)
+────────────────────────────────────────────────────────── */
+
+/* Tablets / Mobile Screens <= 768px */
 @media (max-width: 768px) {
+  /* Dynamic Dashboard Bottom Sheet */
+  .dashboard {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: auto;
+    max-height: 80vh;
+    border-top: 1px solid var(--glass-border);
+    border-left: none;
+    border-radius: 24px 24px 0 0;
+    transform: translateY(100%);
+    box-shadow: 0 -10px 40px 10px rgba(0, 0, 0, 0.6);
+  }
+
+  .dashboard.open {
+    transform: translateY(0);
+  }
+
+  /* Bottom sheet drag-handle indicator at the top */
+  .dashboard::before {
+    content: "";
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    pointer-events: none;
+  }
+
+  /* Dashboard Toggle sits above bottom sheet and moves with it */
+  .dashboard-toggle {
+    position: absolute;
+    top: -56px; /* Float above the top edge of the sheet */
+    right: 20px;
+    left: auto;
+    transform: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  .dashboard-toggle:hover {
+    color: var(--accent-color);
+  }
+
+  .toggle-arrow {
+    transform: rotate(-90deg); /* Points UP by default when closed */
+  }
+
+  .dashboard.open .toggle-arrow {
+    transform: rotate(90deg); /* Points DOWN when open */
+  }
+
+  .dashboard-content {
+    padding: 2rem 1.5rem 1.5rem;
+    gap: 1.5rem;
+  }
+
+  .dash-divider {
+    margin-top: -0.75rem;
+  }
+
+  /* Creator signature overrides */
   .viyaan-logo-image {
     width: 48px;
   }
@@ -835,5 +889,33 @@ input:checked + .slider:before {
   .creator-text {
     font-size: 0.58rem;
     letter-spacing: 3px;
+  }
+}
+
+/* Small Viewports Adjustment (Phones < 480px) */
+@media (max-width: 480px) {
+  .presence-ui {
+    padding: 1rem;
+  }
+
+  .presence-header {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .system-status {
+    padding: 4px 10px;
+  }
+
+  .subtitles-container {
+    padding: 1rem;
+  }
+
+  .subtitles-text {
+    min-height: 3em;
+  }
+
+  .input-panel {
+    gap: 8px;
   }
 }
