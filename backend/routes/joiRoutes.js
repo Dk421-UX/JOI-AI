@@ -16,10 +16,10 @@ router.get('/health', (req, res) => {
   });
 });
 
-router.post('/chat', async (req, res, next) => {
+const handleChat = async (req, res, next) => {
   const startTime = Date.now();
   console.log('\n─────────────────────────────────────────');
-  console.log('[Route] POST /api/joi/chat');
+  console.log(`[Route] POST ${req.originalUrl || req.url}`);
 
   try {
     const { message, memoryData, history, typingStress } = req.body;
@@ -46,6 +46,9 @@ router.post('/chat', async (req, res, next) => {
     // Pass to centralized error middleware
     next(error);
   }
-});
+};
+
+router.post('/chat', handleChat);
+router.post('/', handleChat);
 
 export default router;

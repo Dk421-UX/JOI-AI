@@ -13,6 +13,10 @@
     {
       "source": "/api/joi/chat",
       "destination": "/api/joi/chat.js"
+    },
+    {
+      "source": "/api/joi",
+      "destination": "/api/joi.js"
     }
   ]
 }
