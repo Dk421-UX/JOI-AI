@@ -46,8 +46,9 @@ export async function generateJoiResponse(message, memoryData, history, typingSt
     throw new Error('Groq API Key is missing or empty. Update your .env file.');
   }
 
-  if (!client) {
-    client = new Groq({ apiKey: activeApiKey });
+  let currentKey = activeApiKey;
+  if (!client || client.apiKey !== currentKey) {
+    client = new Groq({ apiKey: currentKey });
   }
 
   // 1. Update relationship trust
@@ -162,18 +163,46 @@ ${negativeConstraints}
     { role: 'user', content: message }
   ];
 
-  try {
-    const completion = await client.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: cappedMessages,
-      temperature: 0.85,
-      max_tokens: 180
-    });
+  const candidateModels = [
+    process.env.GROQ_MODEL,
+    'openai/gpt-oss-120b',
+    'qwen/qwen3.8-27b',
+    'groq/compound-mini',
+    'llama-3.3-70b-versatile',
+    'llama3-70b-8192',
+    'llama-3.1-70b-versatile'
+  ].filter(Boolean);
 
-    let rawReply = completion.choices?.[0]?.message?.content || '';
-    rawReply = rawReply.trim();
+  try {
+    let rawReply = '';
+    let lastError = null;
+
+    for (const modelName of candidateModels) {
+      try {
+        const completion = await client.chat.completions.create({
+          model: modelName,
+          messages: cappedMessages,
+          temperature: 0.85,
+          max_tokens: 180
+        });
+
+        rawReply = completion.choices?.[0]?.message?.content || '';
+        rawReply = rawReply.trim();
+        if (rawReply) {
+          break;
+        }
+      } catch (err) {
+        console.warn(`[GroqService] Model ${modelName} call failed:`, err.message);
+        lastError = err;
+        // If error is authentication/forbidden, do not loop other models
+        if (err.status === 401 || err.status === 403) {
+          throw err;
+        }
+      }
+    }
 
     if (!rawReply) {
+      if (lastError) throw lastError;
       throw new Error('Groq API returned an empty completion.');
     }
 
