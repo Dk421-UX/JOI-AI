@@ -1,9 +1,4 @@
-/*
-  JOI — Powered by Viyaan AI
-  File: frontend/api/joi/health.js (Vercel Serverless Function fallback for frontend root)
-*/
-
-export default function handler(req, res) {
+module.exports = (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -17,4 +12,4 @@ export default function handler(req, res) {
     service: 'joi-router',
     timestamp: new Date().toISOString()
   });
-}
+};

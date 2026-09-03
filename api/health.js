@@ -1,9 +1,4 @@
-/*
-  JOI — Powered by Viyaan AI
-  File: api/health.js (Vercel Serverless Function)
-*/
-
-export default function handler(req, res) {
+module.exports = (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -19,4 +14,4 @@ export default function handler(req, res) {
     uptime: process.uptime(),
     groqConfigured: Boolean(process.env.GROQ_API_KEY)
   });
-}
+};
