@@ -629,10 +629,21 @@ async function handleUserMessageSubmit(message) {
     });
 
     if (!response.ok) {
+      let errData = null;
+      try {
+        errData = await response.json();
+      } catch (_) {
+        try {
+          const errorText = await response.text();
+          console.error(errorText);
+        } catch (_) {}
+      }
 
-      const errorText = await response.text();
-
-      console.error(errorText);
+      if (errData && errData.text) {
+        setAppState('idle');
+        triggerVocalDialogue(errData.text, errData.mood || 'concerned');
+        return;
+      }
 
       throw new Error(`HTTP ${response.status}`);
     }
