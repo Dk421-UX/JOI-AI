@@ -8,10 +8,19 @@ import { voiceEngine, audioSynth } from './voiceEngine.js';
 import { memoryManager } from './memoryManager.js';
 
 /* ──────────────────────────────────────────────────────────
-   PRODUCTION BACKEND URL
+   BACKEND URL CONFIGURATION
 ────────────────────────────────────────────────────────── */
 
-const BACKEND_URL = 'https://joi-ai.onrender.com';
+// In production (Vercel) or when served from the Express server, use same origin ('')
+// If developing on a separate frontend dev server, fallback to localhost:3000
+const BACKEND_URL = (
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+  window.location.port !== '3000' &&
+  window.location.port !== ''
+)
+  ? 'http://localhost:3000'
+  : '';
 
 /* ──────────────────────────────────────────────────────────
    MOOD SYSTEM

@@ -8,6 +8,14 @@ import { generateJoiResponse } from '../services/groqService.js';
 
 const router = express.Router();
 
+router.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'joi-router',
+    timestamp: new Date().toISOString()
+  });
+});
+
 router.post('/chat', async (req, res, next) => {
   const startTime = Date.now();
   console.log('\n─────────────────────────────────────────');
