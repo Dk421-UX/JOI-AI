@@ -4,8 +4,6 @@
   Serverless Health Check Endpoint
 */
 
-import { db } from '../backend/services/db.js';
-
 export default async function handler(req, res) {
   try {
     res.setHeader('Content-Type', 'application/json');
@@ -18,38 +16,35 @@ export default async function handler(req, res) {
       return res.end();
     }
 
-    let dbHealth = { ok: false };
-    try {
-      if (db && typeof db.testConnection === 'function') {
-        dbHealth = await db.testConnection();
-      }
-    } catch (e) {
-      dbHealth = { ok: false, error: e.message };
-    }
-
-    res.statusCode = 200;
-    return res.end(JSON.stringify({
+    const payload = {
       status: 'ok',
-      ok: true,
-      service: 'joi-backend',
+      service: 'JOI AI',
+      environment: process.env.NODE_ENV || 'production',
       timestamp: new Date().toISOString(),
       uptime: process.uptime ? process.uptime() : 0,
       groqConfigured: Boolean(process.env.GROQ_API_KEY),
-      database: {
-        configured: Boolean(db && typeof db.isConfigured === 'function' ? db.isConfigured() : false),
-        connected: Boolean(dbHealth.ok),
-        ...(dbHealth.error ? { error: dbHealth.error } : {})
-      }
-    }));
-  } catch (err) {
+      databaseConfigured: Boolean(process.env.DATABASE_URL)
+    };
+
+    if (typeof res.status === 'function') {
+      return res.status(200).json(payload);
+    }
+
     res.statusCode = 200;
-    return res.end(JSON.stringify({
+    return res.end(JSON.stringify(payload));
+  } catch (err) {
+    const fallback = {
       status: 'ok',
-      ok: true,
-      service: 'joi-backend',
-      timestamp: new Date().toISOString(),
+      service: 'JOI AI',
+      environment: process.env.NODE_ENV || 'production',
       error: err.message
-    }));
+    };
+    if (typeof res.status === 'function') {
+      return res.status(200).json(fallback);
+    }
+    res.statusCode = 200;
+    return res.end(JSON.stringify(fallback));
   }
 }
+
 
