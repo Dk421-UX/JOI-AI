@@ -1,34 +1,3 @@
 {
-  "version": 2,
-  "cleanUrls": false,
-  "rewrites": [
-    {
-      "source": "/api/health",
-      "destination": "/api/health.js"
-    },
-    {
-      "source": "/api/joi/health",
-      "destination": "/api/joi/health.js"
-    },
-    {
-      "source": "/api/joi/profile",
-      "destination": "/api/joi/profile.js"
-    },
-    {
-      "source": "/api/joi/memories",
-      "destination": "/api/joi/memories.js"
-    },
-    {
-      "source": "/api/joi/memories/:id",
-      "destination": "/api/joi/memories.js?id=:id"
-    },
-    {
-      "source": "/api/joi/chat",
-      "destination": "/api/joi/chat.js"
-    },
-    {
-      "source": "/api/joi",
-      "destination": "/api/joi.js"
-    }
-  ]
+  "version": 2
 }
