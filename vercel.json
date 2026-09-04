@@ -11,6 +11,18 @@
       "destination": "/api/joi/health.js"
     },
     {
+      "source": "/api/joi/profile",
+      "destination": "/api/joi/profile.js"
+    },
+    {
+      "source": "/api/joi/memories",
+      "destination": "/api/joi/memories.js"
+    },
+    {
+      "source": "/api/joi/memories/:id",
+      "destination": "/api/joi/memories.js?id=:id"
+    },
+    {
       "source": "/api/joi/chat",
       "destination": "/api/joi/chat.js"
     },

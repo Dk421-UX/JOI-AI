@@ -6,6 +6,7 @@
 import { orbRenderer } from './orbRenderer.js';
 import { voiceEngine, audioSynth } from './voiceEngine.js';
 import { memoryManager } from './memoryManager.js';
+import { authClient } from './authClient.js';
 
 /* ──────────────────────────────────────────────────────────
    BACKEND URL CONFIGURATION
@@ -177,6 +178,11 @@ let typingStressRating = 2.0;
 
 let welcomeScreen;
 let syncBtn;
+let welcomeSubtitle;
+let welcomeNote;
+let onboardingInputWrap;
+let onboardingNameInput;
+
 let textInput;
 let sendBtn;
 let micBtn;
@@ -187,6 +193,11 @@ let mobileSettingsBtn;
 let dashboardBackdrop;
 let ambientToggle;
 let voiceModeToggle;
+
+let dashUserName;
+let dashUserNickname;
+let dashUserTrust;
+let resetIdentityBtn;
 
 let statusPulse;
 let statusText;
@@ -200,29 +211,26 @@ let metricParticles;
 ═══════════════════════════════════════════════════════════ */
 
 document.addEventListener('DOMContentLoaded', () => {
-
   console.log('[JOI] Boot sequence initialized.');
 
+  /* Initialize Client Auth / Session */
+  authClient.init();
+
   /* Canvas */
-
   const canvasElement = document.getElementById('canvas');
-
   if (!canvasElement) {
     console.error('[JOI] Canvas not found.');
     return;
   }
 
   const canvasCtx = canvasElement.getContext('2d');
-
   if (!canvasCtx) {
     console.error('[JOI] 2D context failed.');
     return;
   }
 
   /* Orb Renderer */
-
   orbRenderer.initialize(canvasElement, canvasCtx);
-
   resizeCanvas(canvasElement);
 
   window.addEventListener('resize', () => {
@@ -235,26 +243,19 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* Memory */
-
   const memory = memoryManager.load();
-
-  currentTrust = memory.relationshipTrust;
+  currentTrust = memory.relationshipTrust || 1.0;
   currentMood = memory.lastActiveMood || 'calm';
-
   memoryManager.incrementSession();
 
   /* Voice Engine */
-
   voiceEngine.onStartCallback = () => {
     setAppState('speaking');
   };
 
   voiceEngine.onEndCallback = () => {
-
     setAppState('idle');
-
     if (micBtn) {
-
       if (voiceEngine.isListeningDesired) {
         micBtn.classList.add('listening');
       } else {
@@ -264,45 +265,38 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   voiceEngine.onTranscriptCallback = (text) => {
-
     if (text && text.trim()) {
       handleUserMessageSubmit(text.trim());
     }
   };
 
   voiceEngine.onInterruptCallback = () => {
-
     setAppState('idle');
-
     if (micBtn && !voiceEngine.isListeningDesired) {
       micBtn.classList.remove('listening');
     }
   };
 
   voiceEngine.onStartListeningCallback = () => {
-
     if (micBtn) {
       micBtn.classList.add('listening');
     }
   };
 
   /* UI */
-
   cacheUIElements();
   bindUIEvents();
+  updateWelcomeScreenForUser();
+  updateDashboardUserBadge();
 
   /* Night mode */
-
   checkLateNightTime();
-
   setInterval(checkLateNightTime, 30000);
 
   /* Initial state */
-
   setAppState('sync-wait');
 
   /* Start render */
-
   requestAnimationFrame(orchestratedRenderLoop);
 
   console.log('[JOI] System online.');
@@ -313,12 +307,9 @@ document.addEventListener('DOMContentLoaded', () => {
 ────────────────────────────────────────────────────────── */
 
 function resizeCanvas(canvas) {
-
   if (!canvas) return;
-
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-
   orbRenderer.handleResize();
 }
 
@@ -327,9 +318,12 @@ function resizeCanvas(canvas) {
 ────────────────────────────────────────────────────────── */
 
 function cacheUIElements() {
-
   welcomeScreen = document.getElementById('welcome-screen');
   syncBtn = document.getElementById('sync-btn');
+  welcomeSubtitle = document.getElementById('welcome-subtitle');
+  welcomeNote = document.getElementById('welcome-note');
+  onboardingInputWrap = document.getElementById('onboarding-input-wrap');
+  onboardingNameInput = document.getElementById('onboarding-name-input');
 
   textInput = document.getElementById('text-input');
   sendBtn = document.getElementById('send-btn');
@@ -339,6 +333,11 @@ function cacheUIElements() {
   dashboardToggle = document.getElementById('dashboard-toggle');
   mobileSettingsBtn = document.getElementById('mobile-settings-btn');
   dashboardBackdrop = document.getElementById('dashboard-backdrop');
+
+  dashUserName = document.getElementById('dash-user-name');
+  dashUserNickname = document.getElementById('dash-user-nickname');
+  dashUserTrust = document.getElementById('dash-user-trust');
+  resetIdentityBtn = document.getElementById('reset-identity-btn');
 
   ambientToggle = document.getElementById('ambient-toggle');
   voiceModeToggle = document.getElementById('voice-mode-toggle');
@@ -352,52 +351,99 @@ function cacheUIElements() {
 }
 
 /* ──────────────────────────────────────────────────────────
+   USER PROFILE & ONBOARDING UI HELPERS
+────────────────────────────────────────────────────────── */
+
+function updateWelcomeScreenForUser() {
+  if (!welcomeScreen) return;
+
+  if (authClient.nickname && authClient.displayName) {
+    // Returning user
+    if (onboardingInputWrap) onboardingInputWrap.style.display = 'none';
+    if (welcomeSubtitle) {
+      welcomeSubtitle.innerHTML = `Welcome back, <span class="welcome-nick-highlight">${authClient.nickname}</span>`;
+    }
+    if (welcomeNote) {
+      welcomeNote.textContent = 'You can slow down here.';
+    }
+  } else {
+    // New user
+    if (onboardingInputWrap) onboardingInputWrap.style.display = 'block';
+    if (welcomeSubtitle) {
+      welcomeSubtitle.textContent = 'Talk to JOI';
+    }
+    if (welcomeNote) {
+      welcomeNote.textContent = 'Before we start... what should I call you?';
+    }
+    if (onboardingNameInput) {
+      onboardingNameInput.focus();
+    }
+  }
+}
+
+function updateDashboardUserBadge() {
+  if (dashUserName) {
+    dashUserName.textContent = authClient.displayName || 'Friend';
+  }
+  if (dashUserNickname) {
+    dashUserNickname.textContent = authClient.nickname || '—';
+  }
+  if (dashUserTrust) {
+    dashUserTrust.textContent = `${currentTrust.toFixed(2)} / 5.0`;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
    UI EVENTS
 ────────────────────────────────────────────────────────── */
 
 function bindUIEvents() {
-
   if (syncBtn) {
-
     syncBtn.addEventListener('click', establishSync);
   }
 
+  if (onboardingNameInput) {
+    onboardingNameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        establishSync();
+      }
+    });
+  }
+
+  if (resetIdentityBtn) {
+    resetIdentityBtn.addEventListener('click', () => {
+      if (confirm('Switch to a new identity? This will reset your local session.')) {
+        authClient.reset();
+        memoryManager.reset();
+        window.location.reload();
+      }
+    });
+  }
+
   if (textInput) {
-
     textInput.addEventListener('keydown', (e) => {
-
       logKeyPress();
 
       if (e.key === 'Enter' && textInput.value.trim()) {
-
         handleUserMessageSubmit(textInput.value.trim());
-
         textInput.value = '';
-      }
-      else if (appState === 'speaking') {
-
+      } else if (appState === 'speaking') {
         voiceEngine.interrupt();
       }
     });
   }
 
   if (sendBtn) {
-
     sendBtn.addEventListener('click', () => {
-
       if (textInput && textInput.value.trim()) {
-
         handleUserMessageSubmit(textInput.value.trim());
-
         textInput.value = '';
       }
     });
   }
 
   if (micBtn) {
-
     micBtn.addEventListener('click', () => {
-
       if (audioSynth.isInitialized) {
         audioSynth.playClick();
       }
@@ -405,24 +451,13 @@ function bindUIEvents() {
       registerInteractionActivity();
 
       if (voiceEngine.isListeningDesired) {
-
         voiceEngine.stopListening();
-
         micBtn.classList.remove('listening');
-
-        if (voiceModeToggle) {
-          voiceModeToggle.checked = false;
-        }
-
+        if (voiceModeToggle) voiceModeToggle.checked = false;
       } else {
-
         voiceEngine.startListening();
-
         micBtn.classList.add('listening');
-
-        if (voiceModeToggle) {
-          voiceModeToggle.checked = true;
-        }
+        if (voiceModeToggle) voiceModeToggle.checked = true;
       }
     });
   }
@@ -468,34 +503,6 @@ function bindUIEvents() {
     dashboardBackdrop.addEventListener('click', closeMobileSettings);
   }
 
-  // Swipe-down touch gesture to close bottom sheet on mobile
-  if (dashboard) {
-    let touchStartY = 0;
-    let touchCurrentY = 0;
-    const dashboardContent = dashboard.querySelector('.dashboard-content');
-
-    dashboard.addEventListener('touchstart', (e) => {
-      touchStartY = e.touches[0].clientY;
-      touchCurrentY = touchStartY;
-    }, { passive: true });
-
-    dashboard.addEventListener('touchmove', (e) => {
-      touchCurrentY = e.touches[0].clientY;
-    }, { passive: true });
-
-    dashboard.addEventListener('touchend', () => {
-      const diffY = touchCurrentY - touchStartY;
-      const scrollTop = dashboardContent ? dashboardContent.scrollTop : 0;
-      
-      // Swipe down must be downwards (> 80px) and only trigger when content is at the top of scroll
-      if (diffY > 80 && scrollTop <= 0 && window.innerWidth <= 768) {
-        closeMobileSettings();
-      }
-      touchStartY = 0;
-      touchCurrentY = 0;
-    });
-  }
-
   // Ambient Sound Settings Toggle
   if (ambientToggle) {
     ambientToggle.addEventListener('change', () => {
@@ -528,10 +535,10 @@ function bindUIEvents() {
     btn.addEventListener('click', () => {
       const mood = btn.getAttribute('data-emotion');
       applyJoiMoodState(mood);
-      
+
       emotionBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      
+
       try {
         orbRenderer.triggerGlitch(0.5, 300);
         if (audioSynth && audioSynth.isInitialized) {
@@ -543,21 +550,30 @@ function bindUIEvents() {
 }
 
 /* ──────────────────────────────────────────────────────────
-   ESTABLISH SYNC
-   ...
-*/
+   ESTABLISH SYNC & ONBOARDING
+────────────────────────────────────────────────────────── */
 
-function establishSync() {
+async function establishSync() {
+  const isNewUser = !authClient.nickname;
+  let enteredName = onboardingNameInput ? onboardingNameInput.value.trim() : '';
+
+  if (isNewUser && enteredName) {
+    // Onboard new user with name
+    await authClient.onboardUser(enteredName, BACKEND_URL);
+  } else if (!isNewUser) {
+    // Sync returning user
+    await authClient.syncProfileWithServer(BACKEND_URL);
+  }
+
+  updateDashboardUserBadge();
 
   if (welcomeScreen) {
     welcomeScreen.classList.add('fade-out');
   }
 
   audioSynth.initialize(() => MOODS[currentMood]);
-
   audioSynth.resumeContext();
 
-  // Enforce initial ambient sound setting
   if (ambientToggle && !ambientToggle.checked) {
     audioSynth.toggleMute(true);
   }
@@ -569,17 +585,21 @@ function establishSync() {
   if (micBtn) micBtn.removeAttribute('disabled');
 
   setAppState('idle');
-
   idleTimerActive = true;
-
   registerInteractionActivity();
 
+  const userNickname = authClient.nickname || authClient.displayName || 'Friend';
+
   setTimeout(() => {
-
-    triggerVocalDialogue(
-      "[PEACEFUL] Connection established. I'm here with you."
-    );
-
+    if (isNewUser) {
+      triggerVocalDialogue(
+        `[PEACEFUL] Nice to meet you, ${userNickname}. Connection established. I'm right here with you.`
+      );
+    } else {
+      triggerVocalDialogue(
+        `[PEACEFUL] Welcome back, ${userNickname}. Connection established. I'm right here with you.`
+      );
+    }
   }, 1000);
 }
 
@@ -588,13 +608,10 @@ function establishSync() {
 ────────────────────────────────────────────────────────── */
 
 async function handleUserMessageSubmit(message) {
-
   if (!message || typeof message !== 'string') return;
-
   if (appState === 'thinking' || appState === 'sync-wait') return;
 
   registerInteractionActivity();
-
   voiceEngine.stopListening();
 
   if (micBtn) {
@@ -605,23 +622,17 @@ async function handleUserMessageSubmit(message) {
 
   const clientMemory = memoryManager.load();
   const history = memoryManager.getHistory();
-
   const requestUrl = `${BACKEND_URL}/api/joi/chat`;
 
   console.log('[JOI] API Request →', requestUrl);
 
   try {
-
     const response = await fetch(requestUrl, {
-
       method: 'POST',
-
-      headers: {
-        'Content-Type': 'application/json'
-      },
-
+      headers: authClient.getAuthHeaders(),
       body: JSON.stringify({
         message,
+        sessionToken: authClient.sessionToken,
         memoryData: clientMemory,
         history,
         typingStress: typingStressRating
@@ -632,31 +643,28 @@ async function handleUserMessageSubmit(message) {
       let errData = null;
       try {
         errData = await response.json();
-      } catch (_) {
-        try {
-          const errorText = await response.text();
-          console.error(errorText);
-        } catch (_) {}
-      }
+      } catch (_) {}
 
       if (errData && errData.text) {
         setAppState('idle');
         triggerVocalDialogue(errData.text, errData.mood || 'concerned');
         return;
       }
-
       throw new Error(`HTTP ${response.status}`);
     }
 
     const data = await response.json();
-
     console.log('[JOI] Response received.');
 
+    if (data.profile) {
+      authClient.saveProfile(data.profile);
+      updateDashboardUserBadge();
+    }
+
     if (data.memoryData) {
-
       memoryManager.save(data.memoryData);
-
-      currentTrust = data.memoryData.relationshipTrust || 1.0;
+      currentTrust = data.memoryData.relationshipTrust || currentTrust;
+      updateDashboardUserBadge();
     }
 
     memoryManager.pushHistory('user', message);
@@ -664,15 +672,11 @@ async function handleUserMessageSubmit(message) {
 
     triggerVocalDialogue(data.text, data.mood || null);
 
-  }
-  catch (error) {
-
+  } catch (error) {
     console.error('[JOI] Fetch failed:', error);
-
     setAppState('idle');
-
     triggerVocalDialogue(
-      "[CONCERNED] I lost connection to the backend server."
+      "[CONCERNED] I lost connection to the backend server for a moment. Give me a second and try again."
     );
   }
 }
@@ -682,9 +686,7 @@ async function handleUserMessageSubmit(message) {
 ────────────────────────────────────────────────────────── */
 
 function setAppState(state) {
-
   appState = state;
-
   orbRenderer.setActivityState(state);
 
   if (metricState) {
@@ -692,7 +694,6 @@ function setAppState(state) {
   }
 
   if (statusText) {
-
     const labels = {
       idle: 'ONLINE',
       thinking: 'THINKING...',
@@ -700,7 +701,6 @@ function setAppState(state) {
       listening: 'LISTENING...',
       'sync-wait': 'WAITING FOR SYNC'
     };
-
     statusText.textContent = labels[state] || state.toUpperCase();
   }
 }
@@ -710,11 +710,9 @@ function setAppState(state) {
 ────────────────────────────────────────────────────────── */
 
 function triggerVocalDialogue(text, moodOverride = null) {
-
   if (!text) return;
 
   let mood = moodOverride || 'calm';
-
   if (!MOODS[mood]) {
     mood = 'calm';
   }
@@ -724,13 +722,9 @@ function triggerVocalDialogue(text, moodOverride = null) {
   const cleanText = text.replace(/^\[[A-Z]+\]\s*/i, '').trim();
 
   if (cleanText) {
-
     voiceEngine.speak(cleanText, MOODS[mood]);
-
     setAppState('speaking');
-
   } else {
-
     setAppState('idle');
   }
 }
@@ -740,7 +734,6 @@ function triggerVocalDialogue(text, moodOverride = null) {
 ────────────────────────────────────────────────────────── */
 
 function applyJoiMoodState(mood) {
-
   if (!MOODS[mood]) {
     mood = 'calm';
   }
@@ -757,12 +750,8 @@ function applyJoiMoodState(mood) {
 ────────────────────────────────────────────────────────── */
 
 function checkLateNightTime() {
-
   const hour = new Date().getHours();
-
-  const isLate = hour >= 22 || hour < 5;
-
-  isLateNightMode = isLate;
+  isLateNightMode = (hour >= 22 || hour < 5);
 }
 
 /* ──────────────────────────────────────────────────────────
@@ -770,28 +759,18 @@ function checkLateNightTime() {
 ────────────────────────────────────────────────────────── */
 
 function handleCameraDriftMove(e) {
-
   const wHalf = window.innerWidth / 2;
   const hHalf = window.innerHeight / 2;
-
   const driftAmount = isLateNightMode ? 6 : 14;
 
-  cameraDrift.targetX =
-    ((e.clientX - wHalf) / wHalf) * driftAmount;
-
-  cameraDrift.targetY =
-    ((e.clientY - hHalf) / hHalf) * (driftAmount * 0.75);
+  cameraDrift.targetX = ((e.clientX - wHalf) / wHalf) * driftAmount;
+  cameraDrift.targetY = ((e.clientY - hHalf) / hHalf) * (driftAmount * 0.75);
 }
 
 function updateCameraDrift() {
-
   const ease = isLateNightMode ? 0.02 : 0.045;
-
-  cameraDrift.x +=
-    (cameraDrift.targetX - cameraDrift.x) * ease;
-
-  cameraDrift.y +=
-    (cameraDrift.targetY - cameraDrift.y) * ease;
+  cameraDrift.x += (cameraDrift.targetX - cameraDrift.x) * ease;
+  cameraDrift.y += (cameraDrift.targetY - cameraDrift.y) * ease;
 }
 
 /* ──────────────────────────────────────────────────────────
@@ -799,11 +778,8 @@ function updateCameraDrift() {
 ────────────────────────────────────────────────────────── */
 
 function logKeyPress() {
-
   registerInteractionActivity();
-
   const now = Date.now();
-
   keyTimestamps.push(now);
 
   if (keyTimestamps.length > 10) {
@@ -812,35 +788,26 @@ function logKeyPress() {
 }
 
 function registerInteractionActivity() {
-
   lastInteractionTime = Date.now();
-
   scheduleIdleTimer();
 }
 
 function scheduleIdleTimer() {
-
   if (!idleTimerActive) return;
-
   if (idleTimer) {
     clearTimeout(idleTimer);
   }
 
   idleTimer = setTimeout(() => {
-
     evaluateIdleCheck();
-
-  }, 30000);
+  }, 35000);
 }
 
 function evaluateIdleCheck() {
-
   if (!idleTimerActive) return;
-
   triggerVocalDialogue(
-    "[REFLECTIVE] I'm still here with you."
+    "[REFLECTIVE] I'm still right here with you."
   );
-
   scheduleIdleTimer();
 }
 
@@ -849,58 +816,34 @@ function evaluateIdleCheck() {
 ────────────────────────────────────────────────────────── */
 
 function orchestratedRenderLoop(now) {
-
   const canvasElement = document.getElementById('canvas');
-
   if (!canvasElement) return;
 
   const diff = now - lastFrameTime;
-
   lastFrameTime = now;
-
   const safeDiff = Math.max(diff, 1);
 
-  fps = Math.round(
-    fps * 0.94 + (1000 / safeDiff) * 0.06
-  );
+  fps = Math.round(fps * 0.94 + (1000 / safeDiff) * 0.06);
 
   if (now - lastFpsCheckTime > 1000) {
-
     lastFpsCheckTime = now;
-
     if (metricFps) {
       metricFps.textContent = `${fps} FPS`;
     }
-
     if (metricParticles) {
-
-      metricParticles.textContent =
-        `${orbRenderer.particles ? orbRenderer.particles.length : 0}`;
+      metricParticles.textContent = `${orbRenderer.particles ? orbRenderer.particles.length : 0}`;
     }
   }
 
   const canvasCtx = canvasElement.getContext('2d');
-
-  canvasCtx.fillStyle =
-    `rgba(10,11,20,${appState === 'speaking' ? '0.15' : '0.24'})`;
-
-  canvasCtx.fillRect(
-    0,
-    0,
-    canvasElement.width,
-    canvasElement.height
-  );
+  canvasCtx.fillStyle = `rgba(10,11,20,${appState === 'speaking' ? '0.15' : '0.24'})`;
+  canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
 
   const moodConfig = MOODS[currentMood] || MOODS.calm;
 
-  currentColor.h +=
-    (moodConfig.h - currentColor.h) * 0.06;
-
-  currentColor.s +=
-    (moodConfig.s - currentColor.s) * 0.06;
-
-  currentColor.l +=
-    (moodConfig.l - currentColor.l) * 0.06;
+  currentColor.h += (moodConfig.h - currentColor.h) * 0.06;
+  currentColor.s += (moodConfig.s - currentColor.s) * 0.06;
+  currentColor.l += (moodConfig.l - currentColor.l) * 0.06;
 
   updateCameraDrift();
 

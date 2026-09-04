@@ -12,6 +12,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.19.2",
-    "groq-sdk": "^1.2.1"
+    "groq-sdk": "^1.2.1",
+    "@neondatabase/serverless": "^0.10.4",
+    "pg": "^8.13.1"
   }
 }
