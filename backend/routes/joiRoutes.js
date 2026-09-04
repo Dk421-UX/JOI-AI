@@ -29,7 +29,7 @@ router.get('/health', async (req, res) => {
 
 router.post('/profile', async (req, res, next) => {
   try {
-    const { displayName, sessionToken } = req.body;
+    const { displayName, sessionToken, joiNickname } = req.body;
     const cleanName = (displayName || 'Friend').trim();
 
     // Check if profile exists by session token
@@ -39,31 +39,26 @@ router.post('/profile', async (req, res, next) => {
     }
 
     if (existingProfile) {
-      // If nickname already exists, reuse it; otherwise generate
-      let nickname = existingProfile.joi_nickname;
-      if (!nickname) {
-        nickname = await generateJoiNickname(cleanName);
-        existingProfile = await db.createOrUpdateProfile({
-          id: existingProfile.id,
-          displayName: cleanName,
-          joiNickname: nickname,
-          sessionToken: existingProfile.session_token
-        });
-      }
+      const nickname = joiNickname !== undefined ? joiNickname : existingProfile.joi_nickname;
+      existingProfile = await db.createOrUpdateProfile({
+        id: existingProfile.id,
+        displayName: cleanName,
+        joiNickname: nickname,
+        sessionToken: existingProfile.session_token
+      });
       return res.json({ profile: existingProfile, isNew: false });
     }
 
-    // New User: generate nickname and create profile
-    const nickname = await generateJoiNickname(cleanName);
+    // New User: only set nickname if explicitly passed in request, otherwise null
     const token = sessionToken || `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     const newProfile = await db.createOrUpdateProfile({
       displayName: cleanName,
-      joiNickname: nickname,
+      joiNickname: joiNickname || null,
       sessionToken: token
     });
 
-    console.log(`[Route] Created new profile for "${cleanName}" with nickname "${nickname}"`);
+    console.log(`[Route] Created new profile for "${cleanName}" (Nickname: ${joiNickname || 'None'})`);
     return res.json({ profile: newProfile, isNew: true });
 
   } catch (error) {

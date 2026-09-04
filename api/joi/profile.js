@@ -53,32 +53,28 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { displayName, sessionToken } = body || {};
+    const { displayName, sessionToken, joiNickname } = body || {};
     const cleanName = (displayName || 'Friend').trim();
     const effectiveToken = sessionToken || token || `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     try {
       let existing = await db.getProfileBySessionToken(effectiveToken);
       if (existing) {
-        let nickname = existing.joi_nickname;
-        if (!nickname) {
-          nickname = await generateJoiNickname(cleanName);
-          existing = await db.createOrUpdateProfile({
-            id: existing.id,
-            displayName: cleanName,
-            joiNickname: nickname,
-            sessionToken: existing.session_token
-          });
-        }
+        const nickname = joiNickname !== undefined ? joiNickname : existing.joi_nickname;
+        existing = await db.createOrUpdateProfile({
+          id: existing.id,
+          displayName: cleanName,
+          joiNickname: nickname,
+          sessionToken: existing.session_token
+        });
         res.statusCode = 200;
         return res.end(JSON.stringify({ profile: existing, isNew: false }));
       }
 
-      // New profile with dynamic nickname
-      const nickname = await generateJoiNickname(cleanName);
+      // New profile: only set nickname if explicitly provided
       const newProfile = await db.createOrUpdateProfile({
         displayName: cleanName,
-        joiNickname: nickname,
+        joiNickname: joiNickname || null,
         sessionToken: effectiveToken
       });
 

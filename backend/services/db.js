@@ -200,7 +200,16 @@ export const db = {
           return p;
         }
       }
-      return null;
+      const newProfile = {
+        id: userId,
+        display_name: 'Friend',
+        joi_nickname: nickname,
+        session_token: `sess_${userId}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      inMemoryStore.profiles.set(newProfile.session_token, newProfile);
+      return newProfile;
     }
 
     try {
@@ -211,6 +220,32 @@ export const db = {
       return res.rows[0] || null;
     } catch (err) {
       console.warn('[DB] Fallback updateJoiNickname:', err.message);
+      return null;
+    }
+  },
+
+  async clearJoiNickname(userId) {
+    if (!userId) return null;
+
+    if (!this.isConfigured()) {
+      for (const p of inMemoryStore.profiles.values()) {
+        if (p.id === userId) {
+          p.joi_nickname = null;
+          p.updated_at = new Date().toISOString();
+          return p;
+        }
+      }
+      return null;
+    }
+
+    try {
+      const res = await this.query(
+        'UPDATE profiles SET joi_nickname = NULL, updated_at = NOW() WHERE id = $1 RETURNING *',
+        [userId]
+      );
+      return res.rows[0] || null;
+    } catch (err) {
+      console.warn('[DB] Fallback clearJoiNickname:', err.message);
       return null;
     }
   },
@@ -348,11 +383,19 @@ export const db = {
 
     if (!this.isConfigured()) {
       const userMems = inMemoryStore.memories.get(userId) || [];
+      const cleanContent = content.trim();
+      const existing = userMems.find(m => m.content.toLowerCase() === cleanContent.toLowerCase());
+      if (existing) {
+        existing.importance = importance;
+        existing.confidence = confidence;
+        existing.updated_at = new Date().toISOString();
+        return existing;
+      }
       const mem = {
         id: `mem_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         user_id: userId,
         memory_type: memoryType || 'fact',
-        content,
+        content: cleanContent,
         importance,
         confidence,
         source,
@@ -401,6 +444,8 @@ export const db = {
 
     if (!this.isConfigured()) {
       const userMems = inMemoryStore.memories.get(userId) || [];
+      const exists = userMems.some(m => m.id === memoryId);
+      if (!exists) return false;
       const filtered = userMems.filter(m => m.id !== memoryId);
       inMemoryStore.memories.set(userId, filtered);
       return true;
@@ -414,6 +459,81 @@ export const db = {
       return (res.rowCount || 0) > 0;
     } catch (err) {
       console.warn('[DB] Fallback deleteMemory:', err.message);
+      return false;
+    }
+  },
+
+  async deleteMemoryByKeyword(userId, keyword) {
+    if (!userId || !keyword) return false;
+
+    if (!this.isConfigured()) {
+      const userMems = inMemoryStore.memories.get(userId) || [];
+      const lower = keyword.toLowerCase();
+      const filtered = userMems.filter(m => !m.content.toLowerCase().includes(lower));
+      inMemoryStore.memories.set(userId, filtered);
+      return filtered.length < userMems.length;
+    }
+
+    try {
+      const res = await this.query(
+        'DELETE FROM memories WHERE user_id = $1 AND LOWER(content) LIKE $2',
+        [userId, `%${keyword.toLowerCase()}%`]
+      );
+      return (res.rowCount || 0) > 0;
+    } catch (err) {
+      console.warn('[DB] Fallback deleteMemoryByKeyword:', err.message);
+      return false;
+    }
+  },
+
+  async deleteLatestMemory(userId) {
+    if (!userId) return false;
+
+    if (!this.isConfigured()) {
+      const userMems = inMemoryStore.memories.get(userId) || [];
+      if (userMems.length > 0) {
+        userMems.pop();
+        inMemoryStore.memories.set(userId, userMems);
+        return true;
+      }
+      return false;
+    }
+
+    try {
+      const res = await this.query(
+        `DELETE FROM memories 
+         WHERE id = (
+           SELECT id FROM memories WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1
+         )`,
+        [userId]
+      );
+      return (res.rowCount || 0) > 0;
+    } catch (err) {
+      console.warn('[DB] Fallback deleteLatestMemory:', err.message);
+      return false;
+    }
+  },
+
+  async deleteUserPreference(userId, key) {
+    if (!userId || !key) return false;
+
+    if (!this.isConfigured()) {
+      const userPrefs = inMemoryStore.preferences.get(userId);
+      if (userPrefs && userPrefs.has(key)) {
+        userPrefs.delete(key);
+        return true;
+      }
+      return false;
+    }
+
+    try {
+      const res = await this.query(
+        'DELETE FROM user_preferences WHERE user_id = $1 AND preference_key = $2',
+        [userId, key]
+      );
+      return (res.rowCount || 0) > 0;
+    } catch (err) {
+      console.warn('[DB] Fallback deleteUserPreference:', err.message);
       return false;
     }
   },

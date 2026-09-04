@@ -6,7 +6,8 @@
   "description": "JOI AI Companion — Backend powered by Groq",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node tests/joiEvaluationSuite.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

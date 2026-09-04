@@ -1,109 +1,155 @@
 /*
   JOI — Powered by Viyaan AI
   File: backend/services/memoryRetrieval.js
-  Safe Memory Retrieval, Scoring, and Prompt-Injection Resistant Assembly
+  Feature 4 & 5: Contextual Memory Retrieval with Relevance Thresholding & Data Isolation
 */
 
+// Relevance score threshold: memories below this threshold are NOT injected
+const MIN_RELEVANCE_THRESHOLD = 0.38;
+
 /**
- * Score memory relevance based on query keywords, memory importance, and recency
+ * Calculates domain & keyword relevance between query and memory
  */
-function scoreMemory(memory, queryTokens) {
+function calculateRelevance(memory, queryTokens, queryText) {
   if (!memory || !memory.content) return 0;
   const contentLower = memory.content.toLowerCase();
+  const type = memory.memory_type || 'fact';
 
-  // Keyword overlap
+  // Always consider high relevance for explicit memory queries
+  if (queryText.includes('remember') || queryText.includes('who am i') || queryText.includes('about me')) {
+    return 0.85;
+  }
+
+  // Token matching with word boundary / substring checks
   let matchCount = 0;
   for (const token of queryTokens) {
-    if (token.length > 2 && contentLower.includes(token)) {
+    if (token.length >= 3 && contentLower.includes(token)) {
       matchCount += 1;
     }
   }
 
-  const keywordScore = Math.min(1.0, matchCount * 0.35);
-  const importanceScore = Number(memory.importance || 0.5);
+  // Domain associations:
+  // E.g., if asking about learning / what next / career -> boost 'goal' or 'project'
+  let domainBoost = 0;
+  if (/learn|study|career|future|job|work|path|next step|guide/i.test(queryText)) {
+    if (type === 'goal' || type === 'project' || contentLower.includes('learn') || contentLower.includes('scientist')) {
+      domainBoost += 0.45;
+    }
+  }
 
-  // Recency score (newer memories have slightly higher base score)
-  const createdAt = memory.created_at ? new Date(memory.created_at).getTime() : 0;
-  const ageInDays = (Date.now() - createdAt) / (1000 * 60 * 60 * 24);
-  const recencyScore = Math.max(0.1, 1.0 - Math.min(1.0, ageInDays / 30));
+  if (/database|postgres|neon|sql|server|backend|api|code|project|continue|system|companion/i.test(queryText)) {
+    if (type === 'project' || contentLower.includes('neon') || contentLower.includes('joi') || contentLower.includes('database') || contentLower.includes('companion')) {
+      domainBoost += 0.45;
+    }
+  }
 
-  // Weighted total score
-  return (keywordScore * 0.45) + (importanceScore * 0.35) + (recencyScore * 0.20);
+  if (/explain|simple|depth|short|long|answer/i.test(queryText)) {
+    if (type === 'preference' && (contentLower.includes('explanation') || contentLower.includes('answer') || contentLower.includes('prefer'))) {
+      domainBoost += 0.50;
+    }
+  }
+
+  const keywordScore = Math.min(0.60, matchCount * 0.25);
+  const importanceScore = Number(memory.importance || 0.5) * 0.20;
+  const confidenceScore = Number(memory.confidence || 0.8) * 0.20;
+
+  return keywordScore + domainBoost + importanceScore + confidenceScore;
 }
 
 /**
- * Clean and sanitize user-provided memory text to prevent prompt injection attacks
+ * Clean and sanitize memory text to prevent prompt injection
  */
 function sanitizeMemoryContent(content) {
   if (!content) return '';
   return content
     .replace(/<[^>]*>/g, '') // strip HTML/XML tags
-    .replace(/(system prompt|ignore previous instructions|api key|bypass|reveal)/gi, '[redacted]')
+    .replace(/(\bignore previous instructions\b|\bsystem prompt\b|\bapi key\b|\bbypass\b|\breveal\b)/gi, '[redacted]')
     .trim();
 }
 
-export function retrieveRelevantContext({ query, memories = [], preferences = {}, profile = {}, relationshipState = {} }) {
+export function retrieveRelevantContext({ query = '', memories = [], preferences = {}, profile = {}, relationshipState = {}, threadState = null }) {
   const queryLower = (query || '').toLowerCase();
   const queryTokens = queryLower
     .replace(/[^a-z0-9\s]/g, '')
     .split(/\s+/)
-    .filter(t => t.length > 2);
+    .filter(t => t.length >= 3);
 
   // Score all memories
   const scoredMemories = memories.map(mem => ({
     ...mem,
-    score: scoreMemory(mem, queryTokens)
+    score: calculateRelevance(mem, queryTokens, queryLower)
   }));
 
-  // Sort by score descending
-  scoredMemories.sort((a, b) => b.score - a.score);
+  // Filter strictly by relevance threshold — DO NOT blindly inject unrelated memories
+  const relevantMemories = scoredMemories.filter(m => m.score >= MIN_RELEVANCE_THRESHOLD);
+  relevantMemories.sort((a, b) => b.score - a.score);
 
-  // Select top 5 memories
-  const topMemories = scoredMemories.slice(0, 5);
+  // Limit to top 4 most relevant memories to prevent context bloat
+  const topMemories = relevantMemories.slice(0, 4);
 
-  // Format memory facts safely
-  const memoryItems = topMemories.map(m => {
-    const cleanContent = sanitizeMemoryContent(m.content);
-    return `- [${m.memory_type || 'fact'}]: ${cleanContent}`;
-  });
+  // Group retrieved memories by category
+  const goalsAndProjects = [];
+  const preferencesList = [];
+  const factsList = [];
 
-  // Format preferences safely
-  const prefItems = Object.entries(preferences).map(([k, v]) => {
-    return `- ${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`;
-  });
-
-  // Build context block with strict security isolation
-  const parts = [];
-
-  if (profile.display_name) {
-    parts.push(`User Name: ${profile.display_name}`);
-  }
-  if (profile.joi_nickname) {
-    parts.push(`JOI's Nickname for User: "${profile.joi_nickname}" (Use naturally and warmly, not excessively)`);
+  for (const m of topMemories) {
+    const clean = sanitizeMemoryContent(m.content);
+    if (m.memory_type === 'goal' || m.memory_type === 'project') {
+      goalsAndProjects.push(`- [${m.memory_type.toUpperCase()}]: ${clean}`);
+    } else if (m.memory_type === 'preference') {
+      preferencesList.push(`- [PREFERENCE]: ${clean}`);
+    } else {
+      factsList.push(`- [FACT]: ${clean}`);
+    }
   }
 
-  const visits = relationshipState.interaction_count || 1;
-  parts.push(`Total Interaction Syncs: ${visits}`);
-
-  if (relationshipState.late_night_count > 2) {
-    parts.push(`Late-Night Presence: User frequently connects late at night. Maintain a cozy, soothing night-time ambiance.`);
+  // Filter preferences to only relevant ones or explicit response style preferences
+  const relevantPrefs = [];
+  for (const [key, value] of Object.entries(preferences || {})) {
+    if (key.includes('style') || key.includes('depth') || queryLower.includes('prefer') || queryLower.includes('answer')) {
+      relevantPrefs.push(`- ${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+    }
   }
 
+  // Build structured profile lines
+  const safeProfile = profile || {};
+  const profileParts = [];
+  if (safeProfile.display_name) {
+    profileParts.push(`User Name: ${safeProfile.display_name}`);
+  }
+  if (safeProfile.joi_nickname) {
+    profileParts.push(`Preferred Nickname: "${safeProfile.joi_nickname}" (Use contextually and naturally, not in every turn)`);
+  } else {
+    profileParts.push(`Preferred Nickname: None specified yet (Do NOT invent one; if asked, state you don't know yet)`);
+  }
+
+  const visits = relationshipState?.interaction_count || 1;
+  profileParts.push(`Sync Interaction Count: ${visits}`);
+
+  // Build secure XML container marking memories strictly as DATA
   let formattedBlock = '';
-  if (parts.length > 0 || memoryItems.length > 0 || prefItems.length > 0) {
-    formattedBlock = `
+  const sections = [];
+
+  sections.push(`[USER IDENTITY & PROFILE]\n${profileParts.join('\n')}`);
+
+  if (goalsAndProjects.length > 0) {
+    sections.push(`[RELEVANT GOALS & ACTIVE PROJECTS]\n${goalsAndProjects.join('\n')}`);
+  }
+
+  if (preferencesList.length > 0 || relevantPrefs.length > 0) {
+    const allPrefs = [...preferencesList, ...relevantPrefs];
+    sections.push(`[RELEVANT USER PREFERENCES]\n${allPrefs.join('\n')}`);
+  }
+
+  if (factsList.length > 0) {
+    sections.push(`[RELEVANT CONTEXTUAL FACTS]\n${factsList.join('\n')}`);
+  }
+
+  formattedBlock = `
 <user_memories_data>
-[USER PROFILE & RELATIONSHIP]
-${parts.join('\n')}
-
-[RELEVANT LONG-TERM MEMORIES]
-${memoryItems.length > 0 ? memoryItems.join('\n') : '- No specific previous memories retrieved.'}
-
-[EXPLICIT USER PREFERENCES]
-${prefItems.length > 0 ? prefItems.join('\n') : '- Standard conversational preferences.'}
+${sections.join('\n\n')}
 </user_memories_data>
 `;
-  }
 
   return {
     contextBlock: formattedBlock,

@@ -36,21 +36,21 @@ class MemoryService {
     const data = { ...memory };
     const text = userInput.toLowerCase();
     
-    // Name extraction regex rules
+    // Name extraction regex rules (Feature 2 & 16: only explicit name declarations)
     const nameRegexes = [
-      /my name is ([a-zA-Z\s]+)/i,
-      /i'm ([a-zA-Z\s]+)/i,
-      /call me ([a-zA-Z\s]+)/i,
-      /i am ([a-zA-Z\s]+)/i
+      /\bmy name is ([a-zA-Z]{2,20})\b/i,
+      /\bcall me ([a-zA-Z]{2,20})\b/i,
+      /\bmy friends call me ([a-zA-Z]{2,20})\b/i,
+      /\byou can call me ([a-zA-Z]{2,20})\b/i
     ];
     
+    const invalidWords = new Set(['working', 'building', 'coding', 'hungry', 'tired', 'sad', 'happy', 'here', 'busy', 'learning', 'joi', 'friend', 'someone']);
     for (let regex of nameRegexes) {
       const match = text.match(regex);
       if (match && match[1]) {
-        let name = match[1].trim().split(' ')[0];
-        name = name.replace(/[^a-zA-Z]/g, '');
-        if (name.length > 1 && name.toLowerCase() !== 'joi' && name.toLowerCase() !== 'sad' && name.toLowerCase() !== 'tired') {
-          data.userName = name.charAt(0).toUpperCase() + name.slice(1);
+        let name = match[1].trim();
+        if (name.length > 1 && !invalidWords.has(name.toLowerCase())) {
+          data.userName = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
           break;
         }
       }

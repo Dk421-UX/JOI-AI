@@ -111,45 +111,14 @@ function sanitizeNickname(rawNickname, originalName) {
 
 export async function generateJoiNickname(name, userPreference = '') {
   if (!name || typeof name !== 'string' || !name.trim()) {
-    return 'Friend';
+    return null;
   }
 
-  const cleanName = name.trim();
-  const client = getGroqClient();
-
-  if (!client) {
-    return generateDeterministicNickname(cleanName);
+  // Feature 2 & Feature 16: Never invent an artificial nickname.
+  // Only return a nickname if the user explicitly provided a preferred name/nickname.
+  if (userPreference && userPreference.trim()) {
+    return sanitizeNickname(userPreference.trim(), name);
   }
 
-  const prompt = `
-You are JOI, an emotionally intelligent, warm, and playful female companion.
-A new user just introduced themselves with the name: "${cleanName}".
-
-Your task:
-Generate ONE (and only ONE) warm, funny, affectionate, context-appropriate, and memorable nickname for this person.
-
-Guidelines:
-- Keep it friendly, cute, charming, or playfully cool (e.g., for "Dharani" -> "Dhanu" or "Captain D", for "Lucas" -> "Lu", for "Samantha" -> "Sammy").
-- Must NOT be insulting, offensive, vulgar, derogatory, or embarrassing.
-- Must be a short name or title (1 to 2 words maximum).
-- Respond ONLY with the nickname itself, with NO punctuation, NO quotation marks, NO explanation.
-
-Nickname:`;
-
-  try {
-    const completion = await client.chat.completions.create({
-      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 15
-    });
-
-    const raw = completion.choices?.[0]?.message?.content?.trim() || '';
-    const sanitized = sanitizeNickname(raw, cleanName);
-    console.log(`[NicknameService] Generated nickname for "${cleanName}": "${sanitized}"`);
-    return sanitized;
-  } catch (err) {
-    console.warn(`[NicknameService] AI nickname generation failed (${err.message}). Using fallback.`);
-    return generateDeterministicNickname(cleanName);
-  }
+  return null;
 }
